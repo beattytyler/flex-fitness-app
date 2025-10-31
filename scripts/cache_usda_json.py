@@ -1,7 +1,10 @@
 import json
 import os
-from app import db, create_app
+
+from app import create_app, db
 from app.models import Food, FoodMeasure
+
+KILOJOULE_TO_KILOCALORIE = 1 / 4.184
 
 app = create_app()
 
@@ -47,17 +50,33 @@ def import_usda_file(filepath, dataset_name):
         
         if not existing_food:
             # Extract nutrient data (per 100g)
-            nutrients = {n['nutrient']['name']: n.get('amount', 0) 
-                        for n in food_data.get('foodNutrients', [])}
-            
+            nutrient_amounts = {}
+            energy_kcal = None
+
+            for nutrient in food_data.get('foodNutrients', []):
+                nutrient_info = nutrient.get('nutrient', {})
+                name = nutrient_info.get('name')
+                if not name:
+                    continue
+
+                amount = nutrient.get('amount') or 0
+                unit = (nutrient_info.get('unitName') or '').lower()
+
+                if name == 'Energy':
+                    converted = amount * KILOJOULE_TO_KILOCALORIE if unit == 'kj' else amount
+                    if energy_kcal is None or unit != 'kj':
+                        energy_kcal = converted
+                else:
+                    nutrient_amounts[name] = amount
+
             # Create new food
             food = Food(
                 name=description,
                 source_id=str(fdc_id),
-                calories=nutrients.get('Energy', 0),
-                protein_g=nutrients.get('Protein', 0),
-                carbs_g=nutrients.get('Carbohydrate, by difference', 0),
-                fats_g=nutrients.get('Total lipid (fat)', 0),
+                calories=energy_kcal or 0,
+                protein_g=nutrient_amounts.get('Protein', 0),
+                carbs_g=nutrient_amounts.get('Carbohydrate, by difference', 0),
+                fats_g=nutrient_amounts.get('Total lipid (fat)', 0),
                 serving_size=100,
                 serving_unit='g'
             )

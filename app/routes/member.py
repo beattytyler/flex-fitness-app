@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, session, flash, redirect, request, url_for, jsonify
 from app import db
-from app.models import User, Progress, Food, UserFoodLog, FoodMeasure
+from app.models import User, Progress, Food, UserFoodLog, FoodMeasure, _macro_basis
 from datetime import datetime
 
 member_bp = Blueprint('member', __name__, url_prefix='/member')
@@ -125,6 +125,36 @@ UNIT_TO_GRAMS = {
     "cup": 240
 }
 
+
+def _scaled_macros(food: Food, quantity_in_grams: float):
+    (
+        base_protein,
+        base_carbs,
+        base_fats,
+        base_calories,
+        serving_grams,
+    ) = _macro_basis(food)
+
+    factor = quantity_in_grams / serving_grams if serving_grams else 0
+
+    macro_calories = (base_protein * 4) + (base_carbs * 4) + (base_fats * 9)
+    calories = base_calories
+
+    if macro_calories:
+        if not base_calories:
+            calories = macro_calories
+        else:
+            ratio = base_calories / macro_calories if macro_calories else 0
+            if ratio > 2 or ratio < 0.5:
+                calories = macro_calories
+
+    return {
+        "calories": round(calories * factor, 1),
+        "protein": round(base_protein * factor, 1),
+        "carbs": round(base_carbs * factor, 1),
+        "fats": round(base_fats * factor, 1),
+    }
+
 def scale_nutrients(food_id, quantity, unit):
     measure = FoodMeasure.query.filter_by(food_id=food_id, measure_name=unit).first()
     if measure:
@@ -134,13 +164,13 @@ def scale_nutrients(food_id, quantity, unit):
         grams = quantity
 
     food = Food.query.get(food_id)
-    factor = grams / 100  # assuming macros stored per 100g
+    scaled = _scaled_macros(food, grams)
 
     return {
-        "calories": round(food.calories * factor, 1),
-        "protein_g": round(food.protein_g * factor, 1),
-        "carbs": round(food.carbs_g * factor, 1),
-        "fats": round(food.fats_g * factor, 1)
+        "calories": scaled["calories"],
+        "protein_g": scaled["protein"],
+        "carbs": scaled["carbs"],
+        "fats": scaled["fats"],
     }
 
 
@@ -173,16 +203,15 @@ def search_foods():
                 grams_per_unit = measure.grams
 
             quantity_in_grams = quantity * grams_per_unit
-            serving_grams = food.serving_size or 100
-            factor = quantity_in_grams / serving_grams
+            scaled = _scaled_macros(food, quantity_in_grams)
 
             results.append({
                 "id": food.id,
                 "name": food.name,
-                "calories": round((food.calories or 0) * factor, 1),
-                "protein_g": round((food.protein_g or 0) * factor, 1),
-                "carbs": round((food.carbs_g or 0) * factor, 1),
-                "fats": round((food.fats_g or 0) * factor, 1),
+                "calories": scaled["calories"],
+                "protein_g": scaled["protein"],
+                "carbs": scaled["carbs"],
+                "fats": scaled["fats"],
                 "serving_size": food.serving_size,
                 "serving_unit": food.serving_unit
             })

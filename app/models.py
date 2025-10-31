@@ -1,6 +1,8 @@
-from app import db
+import random
+import string
 from datetime import datetime
-import string, random
+
+from app import db
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -43,19 +45,7 @@ class Food(db.Model):
     serving_unit = db.Column(db.String(50))
     grams_per_unit = db.Column(db.Float)
 
-UNIT_TO_GRAMS = {
-    "g": 1,
-    "kg": 1000,
-    "oz": 28.35,
-    "lb": 453.592,
-    "tsp": 4.2,
-    "tbsp": 14.3,
-    "cup": 240
-}
-from datetime import datetime
-from app import db
 
-# Make sure this is defined somewhere
 UNIT_TO_GRAMS = {
     "g": 1,
     "kg": 1000,
@@ -63,8 +53,32 @@ UNIT_TO_GRAMS = {
     "lb": 453.592,
     "tsp": 4.2,   # approximate
     "tbsp": 14.3,
-    "cup": 240
+    "cup": 240,
 }
+
+def _macro_basis(food):
+    """Return macro values and a normalized serving size for the food."""
+    base_protein = food.protein_g or 0
+    base_carbs = food.carbs_g or 0
+    base_fats = food.fats_g or 0
+    base_calories = food.calories or 0
+
+    serving_grams = food.serving_size or 100
+    if not serving_grams:
+        serving_grams = 100
+
+    macros_total = base_protein + base_carbs + base_fats
+    if serving_grams and macros_total:
+        # USDA nutrients are stored per 100g. Some legacy foods report a
+        # ``serving_size`` of 1 even though the macros clearly represent a
+        # 100 gram basis (e.g. protein + carbs + fats greatly exceeds the
+        # stated gram weight). Normalize those entries back to 100g so the
+        # scaling factor remains correct.
+        if macros_total > serving_grams * 1.5:
+            serving_grams = 100
+
+    return base_protein, base_carbs, base_fats, base_calories, serving_grams
+
 
 class UserFoodLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -77,30 +91,54 @@ class UserFoodLog(db.Model):
 
     food = db.relationship("Food")
 
-    @property
-    def scaled(self):
-        unit = self.unit.lower() if self.unit else "g"
+    def _quantity_in_grams(self):
+        """Return the stored quantity converted to grams."""
+        quantity = self.quantity or 0
+        unit = (self.unit or "g").lower()
 
-        # Try to find a food-specific measure
+        if unit == "g":
+            return quantity
+
         measure = FoodMeasure.query.filter_by(food_id=self.food_id, measure_name=unit).first()
         if measure:
-            grams_per_unit = measure.grams
-        else:
-            grams_per_unit = UNIT_TO_GRAMS.get(unit, 1)  # fallback to generic
+            return quantity * measure.grams
 
-        quantity_in_grams = self.quantity * grams_per_unit
+        grams_per_unit = UNIT_TO_GRAMS.get(unit)
+        if grams_per_unit:
+            return quantity * grams_per_unit
 
-        serving_grams = self.food.serving_size or 100
-        if serving_grams == 0:
-            serving_grams = 100
+        return quantity
 
-        factor = quantity_in_grams / serving_grams
+    @property
+    def scaled(self):
+        quantity_in_grams = self._quantity_in_grams()
+
+        (
+            base_protein,
+            base_carbs,
+            base_fats,
+            base_calories,
+            serving_grams,
+        ) = _macro_basis(self.food)
+
+        factor = quantity_in_grams / serving_grams if serving_grams else 0
+
+        macro_calories = (base_protein * 4) + (base_carbs * 4) + (base_fats * 9)
+        calories = base_calories
+
+        if macro_calories:
+            if not base_calories:
+                calories = macro_calories
+            else:
+                ratio = base_calories / macro_calories if macro_calories else 0
+                if ratio > 2 or ratio < 0.5:
+                    calories = macro_calories
 
         return {
-            "calories": round((self.food.calories or 0) * factor, 1),
-            "protein": round((self.food.protein_g or 0) * factor, 1),
-            "carbs": round((self.food.carbs_g or 0) * factor, 1),
-            "fats": round((self.food.fats_g or 0) * factor, 1)
+            "calories": round(calories * factor, 1),
+            "protein": round(base_protein * factor, 1),
+            "carbs": round(base_carbs * factor, 1),
+            "fats": round(base_fats * factor, 1)
         }
 
 class Progress(db.Model):

@@ -259,6 +259,30 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// Preserve scroll position across form submissions so the dashboard
+// doesn't jump back to the top after actions complete.
+document.addEventListener("DOMContentLoaded", () => {
+  const SCROLL_STORAGE_KEY = "memberDashboardScrollY";
+
+  // Restore the last scroll position if we have one saved.
+  const savedScroll = sessionStorage.getItem(SCROLL_STORAGE_KEY);
+  if (savedScroll !== null) {
+    window.scrollTo({ top: parseInt(savedScroll, 10), behavior: "auto" });
+  }
+
+  const persistScroll = () => {
+    sessionStorage.setItem(SCROLL_STORAGE_KEY, window.scrollY.toString());
+  };
+
+  // Forms trigger full-page reloads, so capture the position before submit.
+  document.querySelectorAll("form").forEach(form => {
+    form.addEventListener("submit", persistScroll, { capture: true });
+  });
+
+  // Fallback for navigation events such as refresh/back.
+  window.addEventListener("beforeunload", persistScroll);
+});
+
 const searchInput = document.getElementById("food_search");
 const suggestionsBox = document.getElementById("foodSuggestions");
 const foodIdInput = document.getElementById("food_id");
