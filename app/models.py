@@ -11,6 +11,10 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # 'trainer' or 'member'
     trainer_code = db.Column(db.String(6), unique=True, nullable=True)
+    # Email verification
+    email_verified = db.Column(db.Boolean, default=False)
+    email_verification_token = db.Column(db.String(128), nullable=True)
+    email_verification_sent_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # 🔹 Link each member to a trainer
