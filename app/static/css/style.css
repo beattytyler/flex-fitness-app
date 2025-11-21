@@ -116,3 +116,34 @@ body.index-page .navbar-brand {
     letter-spacing: 1px;
     margin-bottom: 1rem;
 }
+
+/* Flash message progress bar (transform-based for smoother animation) */
+.alert {
+  position: relative;
+  overflow: hidden;
+}
+
+.flash-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
+  background: rgba(0,0,0,0.06);
+  z-index: 2;
+}
+
+.flash-progress .bar {
+  height: 100%;
+  width: 100%;
+  transform-origin: left;
+  transform: scaleX(1);
+  background: rgba(13,110,253,0.95);
+  transition: transform 5000ms linear; /* overridden by JS */
+}
+
+.alert-success .flash-progress .bar { background: rgba(25,135,84,0.95); }
+.alert-danger .flash-progress .bar { background: rgba(220,53,69,0.95); }
+.alert-warning .flash-progress .bar { background: rgba(255,193,7,0.95); }
+.alert-info .flash-progress .bar { background: rgba(13,110,253,0.95); }
+
