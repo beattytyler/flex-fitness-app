@@ -17,52 +17,18 @@
 
       const duration = parseInt(alert.dataset.duration, 10) || DEFAULT_DURATION;
       const progress = alert.querySelector('.flash-progress .bar');
-      if (!progress) {
-        // still schedule removal even without visual bar
-        setTimeout(() => removeAlert(alert), duration);
-        return;
+      if (progress) {
+        // initialize transform-based animation and start it
+        progress.style.transformOrigin = 'left';
+        progress.style.transform = 'scaleX(1)';
+        progress.style.transition = `transform ${duration}ms linear`;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          progress.style.transform = 'scaleX(0)';
+        }));
       }
 
-      // initialize transform-based animation
-      progress.style.transformOrigin = 'left';
-      progress.style.transform = 'scaleX(1)';
-      // set a transition; we'll adjust durations on pause/resume
-      progress.style.transition = `transform ${duration}ms linear`;
-
-      // start animation on next frame
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        progress.style.transform = 'scaleX(0)';
-      }));
-
-      let start = Date.now();
-      let timeoutId = setTimeout(() => removeAlert(alert), duration);
-      let remaining = duration;
-
-      // Pause / resume on hover
-      alert.addEventListener('mouseenter', () => {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
-        const elapsed = Date.now() - start;
-        remaining = Math.max(0, duration - elapsed);
-        // freeze animation
-        progress.style.transition = 'none';
-        // compute current scale and set it explicitly
-        const currentScale = Math.max(0, 1 - (elapsed / duration));
-        progress.style.transform = `scaleX(${currentScale})`;
-      });
-
-      alert.addEventListener('mouseleave', () => {
-        // resume animation
-        start = Date.now();
-        // force reflow then set transition for the remaining time
-        requestAnimationFrame(() => {
-          progress.style.transition = `transform ${remaining}ms linear`;
-          progress.style.transform = 'scaleX(0)';
-          timeoutId = setTimeout(() => removeAlert(alert), remaining);
-        });
-      });
+      // remove the alert after the specified duration (no pause-on-hover)
+      setTimeout(() => removeAlert(alert), duration);
     });
   }
 
