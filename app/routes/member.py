@@ -1071,8 +1071,8 @@ def log_food():
     log_payload = {
         "id": log.id,
         "food_name": food.name,
-        "quantity": round(log.quantity, 2),
-        "unit": log.unit,
+        "quantity": round(quantity, 2),  # ← Display the original quantity
+        "unit": unit_input,               # ← Display the original unit
         "calories": round(scaled["calories"], 1),
         "protein": round(scaled["protein"], 1),
         "carbs": round(scaled["carbs"], 1),
