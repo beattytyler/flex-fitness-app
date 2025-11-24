@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app
-from flask_login import login_user, logout_user
+from flask_login import login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db
 from app.models import User
@@ -23,17 +23,20 @@ def login_trainer():
 
         user = User.query.filter_by(email=email, role="trainer").first()
 
-        if user and check_password_hash(user.password_hash, password):
-            if not getattr(user, "email_verified", False):
-                flash("Please verify your email before logging in. Check your inbox (or spam).", "warning")
-                return redirect(url_for("auth.login_trainer"))
-            login_user(user)
-            session["user_id"] = user.id
-            session["role"] = user.role
-            flash(f"Welcome, Trainer {user.first_name}!", "success")
-            return redirect(url_for("trainer.dashboard_trainer"))
+        if not user or not check_password_hash(user.password_hash, password):
+            flash("Email or password incorrect.", "danger")
+            return redirect(url_for("auth.login_trainer"))
 
-        flash("Invalid email or password.", "danger")
+        if not getattr(user, "email_verified", False):
+            flash("Please verify your email before logging in. Check your inbox (or spam).", "warning")
+            return redirect(url_for("auth.login_trainer"))
+
+        login_user(user)
+        session["user_id"] = user.id
+        session["role"] = user.role
+        session["theme_mode"] = user.theme_mode or session.get("theme_mode") or "light"
+        flash(f"Welcome, Trainer {user.first_name}!", "success")
+        return redirect(url_for("trainer.dashboard_trainer"))
 
     return render_template("login-trainer.html")
 
@@ -49,20 +52,23 @@ def login_member():
 
         user = User.query.filter_by(email=email).first()
 
-        if user and check_password_hash(user.password_hash, password):
-            if not getattr(user, "email_verified", False):
-                flash("Please verify your email before logging in. Check your inbox (or spam).", "warning")
-                return redirect(url_for("auth.login_member"))
-            login_user(user)
-            session["user_id"] = user.id
-            session["role"] = user.role
-            flash(f"Welcome back, {user.first_name}!", "success")
+        if not user or not check_password_hash(user.password_hash, password):
+            flash("Email or password incorrect.", "danger")
+            return redirect(url_for("auth.login_member"))
 
-            if user.role == "trainer":
-                return redirect(url_for("trainer.dashboard_trainer"))
-            return redirect(url_for("member.dashboard"))
+        if not getattr(user, "email_verified", False):
+            flash("Please verify your email before logging in. Check your inbox (or spam).", "warning")
+            return redirect(url_for("auth.login_member"))
 
-        flash("Invalid email or password.", "danger")
+        login_user(user)
+        session["user_id"] = user.id
+        session["role"] = user.role
+        session["theme_mode"] = user.theme_mode or session.get("theme_mode") or "light"
+        flash(f"Welcome back, {user.first_name}!", "success")
+
+        if user.role == "trainer":
+            return redirect(url_for("trainer.dashboard_trainer"))
+        return redirect(url_for("member.dashboard"))
 
     return render_template("login-member.html")
 
@@ -83,11 +89,12 @@ def register():
         print(f"Debug mode: {current_app.debug}")
         print("="*50 + "\n")
         
-        first_name = request.form["first_name"]
-        last_name = request.form["last_name"]
-        email = request.form["email"]
-        password = request.form["password"]
-        role = request.form["role"]
+        first_name = request.form.get("first_name", "").strip()
+        last_name = request.form.get("last_name", "").strip()
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+        role = request.form.get("role", "").strip()
 
         current_app.logger.info("Register called: first_name=%s last_name=%s email=%s role=%s", 
                                first_name, last_name, email, role)
@@ -95,6 +102,10 @@ def register():
         # Enforce minimum password length
         if len(password) < 8:
             flash("Password must be at least 8 characters long.", "warning")
+            return redirect(url_for("auth.register"))
+
+        if password != confirm_password:
+            flash("Passwords do not match. Please try again.", "warning")
             return redirect(url_for("auth.register"))
 
         # Check for existing user
@@ -152,21 +163,23 @@ def register():
             print(f"!!! Verification link: {verify_link}\n")
             current_app.logger.exception("Failed to send verification email: %s", e)
 
+        verify_flash = "Account created! Please verify your email before logging in."
+
         # Show appropriate message to user
         if not current_app.config.get("MAIL_SERVER"):
             # No email configured - show dev link
             print(f"\n*** DEV MODE: No MAIL_SERVER configured ***")
             print(f"*** Verification link: {verify_link} ***\n")
-            flash(f"Account created! No email server configured. Use this link to verify: {verify_link}", "info")
+            flash(f"{verify_flash} No email server configured. Use this link to verify: {verify_link}", "info")
         elif email_sent:
             # Email sent successfully
-            flash("Account created successfully! Please check your email to verify your address.", "success")
+            flash(f"{verify_flash} We've emailed a verification link to {user.email}.", "success")
         else:
             # Email failed to send
             if current_app.debug:
-                flash(f"Account created, but email failed to send: {error_message}. Verification link: {verify_link}", "warning")
+                flash(f"{verify_flash} Email delivery failed: {error_message}. Verification link: {verify_link}", "warning")
             else:
-                flash("Account created, but we couldn't send the verification email. Please contact support.", "warning")
+                flash(f"{verify_flash} We couldn't send the verification email. Please contact support.", "warning")
                 print(f"Verification link for support: {verify_link}")
 
         return redirect(url_for("auth.login_trainer" if role == "trainer" else "auth.login_member"))
@@ -254,6 +267,85 @@ Flex Fitness Team"""
         raise RuntimeError(f"Failed to send email: {type(e).__name__}: {e}")
 
 
+def _send_password_reset_email(user):
+    """Send a password reset email using the configured SMTP settings."""
+    cfg = current_app.config
+    token = user.password_reset_token
+    if not token:
+        raise RuntimeError("No password reset token for user")
+
+    base = cfg.get("APP_BASE_URL", "http://localhost:5000")
+    reset_path = f"/auth/reset-password/{token}"
+    reset_url = f"{base.rstrip('/')}{reset_path}"
+
+    subject = "Reset your Flex Fitness password"
+    body = f"""Hi {user.first_name},
+
+You requested a password reset for your Flex Fitness account.
+Click the link below to choose a new password:
+
+{reset_url}
+
+This link will expire in 2 hours. If you didn't request a password reset, you can ignore this email.
+
+Thanks,
+Flex Fitness Team"""
+
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg["Subject"] = subject
+    msg["From"] = cfg.get("MAIL_DEFAULT_SENDER", cfg.get("MAIL_USERNAME"))
+    msg["To"] = user.email
+
+    mail_server = cfg.get("MAIL_SERVER")
+    if not mail_server:
+        raise RuntimeError("MAIL_SERVER not configured in app config")
+
+    port = cfg.get("MAIL_PORT", 587)
+    username = cfg.get("MAIL_USERNAME")
+    password = cfg.get("MAIL_PASSWORD")
+    use_tls = cfg.get("MAIL_USE_TLS", True)
+    use_ssl = cfg.get("MAIL_USE_SSL", False)
+
+    if not username or not password:
+        raise RuntimeError("MAIL_USERNAME and MAIL_PASSWORD must be configured")
+
+    print(f"\nSMTP Connection Details (password reset):")
+    print(f"  Server: {mail_server}:{port}")
+    print(f"  Username: {username}")
+    print(f"  Use TLS: {use_tls}")
+    print(f"  Use SSL: {use_ssl}")
+
+    context = ssl.create_default_context()
+
+    try:
+        if use_ssl:
+            print("  Connecting with SSL...")
+            with smtplib.SMTP_SSL(mail_server, port, context=context, timeout=10) as server:
+                server.set_debuglevel(1)
+                server.login(username, password)
+                server.send_message(msg)
+                print("  ✓ Password reset email sent successfully via SSL")
+        else:
+            print("  Connecting with SMTP...")
+            with smtplib.SMTP(mail_server, port, timeout=10) as server:
+                server.set_debuglevel(1)
+                server.ehlo()
+                if use_tls:
+                    print("  Starting TLS...")
+                    server.starttls(context=context)
+                    server.ehlo()
+                server.login(username, password)
+                server.send_message(msg)
+                print("  ✓ Password reset email sent successfully via SMTP+TLS")
+    except smtplib.SMTPAuthenticationError as e:
+        raise RuntimeError(f"SMTP Authentication failed. Check your username/password. Error: {e}")
+    except smtplib.SMTPException as e:
+        raise RuntimeError(f"SMTP error: {e}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to send password reset email: {type(e).__name__}: {e}")
+
+
 @auth_bp.route("/verify-email/<token>")
 def verify_email(token):
     user = User.query.filter_by(email_verification_token=token).first()
@@ -280,46 +372,134 @@ def verify_email(token):
     return redirect(url_for("auth.login_member"))
 
 
-@auth_bp.route("/resend-verification", methods=["POST"])
+@auth_bp.route("/resend-verification", methods=["GET", "POST"])
 def resend_verification():
-    email = request.form.get("email")
-    if not email:
-        flash("Please provide your email address.", "warning")
-        return redirect(url_for("main.home"))
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        if not email:
+            flash("Please enter the email associated with your account.", "warning")
+            return redirect(url_for("auth.resend_verification"))
 
-    user = User.query.filter_by(email=email).first()
+        user = User.query.filter_by(email=email).first()
+        generic_message = "If we find an account with that email, you'll receive a verification link shortly."
+
+        if not user:
+            flash(generic_message, "info")
+            return redirect(url_for("auth.resend_verification"))
+
+        if user.email_verified:
+            flash("That email is already verified. You can sign in now.", "info")
+            return redirect(url_for("auth.login_member"))
+
+        token = secrets.token_urlsafe(32)
+        user.email_verification_token = token
+        user.email_verification_sent_at = datetime.utcnow()
+        db.session.commit()
+
+        base = current_app.config.get("APP_BASE_URL", "http://localhost:5000")
+        verify_link = f"{base.rstrip('/')}/auth/verify-email/{token}"
+
+        try:
+            _send_verification_email(user)
+            flash(generic_message, "info")
+        except Exception as e:
+            current_app.logger.exception("Failed to resend verification email")
+            if not current_app.config.get("MAIL_SERVER"):
+                flash(f"{generic_message} No email server configured. Use this link to verify: {verify_link}", "info")
+            elif current_app.debug:
+                flash(f"{generic_message} Email delivery failed: {e}. Verification link: {verify_link}", "warning")
+            else:
+                flash("We couldn't send a verification email right now. Please contact support.", "danger")
+
+        return redirect(url_for("auth.resend_verification"))
+
+    return render_template("resend-verification.html")
+
+
+@auth_bp.route("/password-reset", methods=["GET", "POST"])
+def request_password_reset():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        if not email:
+            flash("Please enter the email associated with your account.", "warning")
+            return redirect(url_for("auth.request_password_reset"))
+
+        user = User.query.filter_by(email=email).first()
+        generic_message = "If an account exists for that email, you'll receive a password reset link shortly."
+
+        if not user:
+            flash(generic_message, "info")
+            return redirect(url_for("auth.request_password_reset"))
+
+        token = secrets.token_urlsafe(32)
+        user.password_reset_token = token
+        user.password_reset_sent_at = datetime.utcnow()
+        db.session.commit()
+
+        base = current_app.config.get("APP_BASE_URL", "http://localhost:5000")
+        reset_link = f"{base.rstrip('/')}/auth/reset-password/{token}"
+
+        try:
+            _send_password_reset_email(user)
+            flash(generic_message, "info")
+        except Exception as e:
+            current_app.logger.exception("Failed to send password reset email: %s", e)
+            if not current_app.config.get("MAIL_SERVER"):
+                flash(f"{generic_message} No email server configured. Use this link to reset: {reset_link}", "info")
+            elif current_app.debug:
+                flash(f"{generic_message} Email delivery failed: {e}. Reset link: {reset_link}", "warning")
+            else:
+                flash("We couldn't send a reset email right now. Please contact support.", "danger")
+
+        return redirect(url_for("auth.request_password_reset"))
+
+    return render_template("password-reset-request.html")
+
+
+@auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    user = User.query.filter_by(password_reset_token=token).first()
     if not user:
-        flash("No account found with that email.", "warning")
-        return redirect(url_for("main.home"))
+        flash("Invalid or expired password reset link.", "danger")
+        return redirect(url_for("auth.request_password_reset"))
 
-    if user.email_verified:
-        flash("Email already verified. You can log in.", "info")
+    sent_at = user.password_reset_sent_at
+    if sent_at and datetime.utcnow() - sent_at > timedelta(hours=2):
+        user.password_reset_token = None
+        user.password_reset_sent_at = None
+        db.session.commit()
+        flash("Password reset link has expired. Please request a new one.", "warning")
+        return redirect(url_for("auth.request_password_reset"))
+
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        if len(password) < 8:
+            flash("Password must be at least 8 characters long.", "warning")
+            return redirect(url_for("auth.reset_password", token=token))
+
+        if password != confirm_password:
+            flash("Passwords do not match. Please try again.", "warning")
+            return redirect(url_for("auth.reset_password", token=token))
+
+        user.password_hash = generate_password_hash(password)
+        user.password_reset_token = None
+        user.password_reset_sent_at = None
+        db.session.commit()
+
+        flash("Password updated. You can now log in.", "success")
         return redirect(url_for("auth.login_member"))
 
-    # Create new token and send
-    token = secrets.token_urlsafe(32)
-    user.email_verification_token = token
-    user.email_verification_sent_at = datetime.utcnow()
-    db.session.commit()
-
-    try:
-        _send_verification_email(user)
-        flash("Verification email resent. Check your inbox.", "success")
-    except Exception as e:
-        current_app.logger.exception("Failed to resend verification email")
-        if current_app.debug:
-            base = current_app.config.get("APP_BASE_URL", "http://localhost:5000")
-            verify_link = f"{base.rstrip('/')}/auth/verify-email/{token}"
-            flash(f"Failed to send email: {e}. Debug link: {verify_link}", "warning")
-        else:
-            flash("Failed to send verification email. Please contact support.", "danger")
-
-    return redirect(url_for("main.home"))
+    return render_template("password-reset.html", token=token)
 
 
 @auth_bp.route("/logout")
 def logout():
+    theme_pref = getattr(current_user, "theme_mode", None)
     logout_user()
+    preserved_theme = theme_pref or session.get("theme_mode") or "light"
     session.clear()
+    session["theme_mode"] = preserved_theme
     flash("You have been logged out.", "info")
     return redirect(url_for("main.home"))
