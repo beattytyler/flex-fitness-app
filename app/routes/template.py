@@ -116,13 +116,27 @@ def list_templates():
     return render_template('exercise-templates.html', my_templates=my_templates, assignments=assigned_to_me, user=current_user)
 
 
-@template_bp.route('/<int:template_id>', methods=['GET'])
+@template_bp.route('/<int:template_id>', methods=['GET', 'POST'])
 @login_required
 def view_template(template_id):
     tpl = ExerciseTemplate.query.get_or_404(template_id)
     if tpl.owner_id != current_user.id:
         flash('You do not have access to this template.', 'danger')
         return redirect(url_for('template.list_templates'))
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'update_template':
+            name = (request.form.get('name') or '').strip()
+            description = (request.form.get('description') or '').strip()
+            if not name:
+                flash('Template name is required.', 'warning')
+                return redirect(url_for('template.view_template', template_id=template_id))
+            tpl.name = name
+            tpl.description = description or None
+            db.session.commit()
+            flash('Template updated.', 'success')
+            return redirect(url_for('template.view_template', template_id=template_id))
 
     return render_template('template-detail.html', template=tpl)
 
@@ -283,8 +297,8 @@ def start_workout(template_id):
         except ValueError:
             started_at = datetime.utcnow()
 
-        session = WorkoutSession(user_id=target_user.id, template_id=tpl.id, started_at=started_at)
-        db.session.add(session)
+        workout_session = WorkoutSession(user_id=target_user.id, template_id=tpl.id, started_at=started_at)
+        db.session.add(workout_session)
         db.session.flush()
 
         total_sets = 0
@@ -327,7 +341,7 @@ def start_workout(template_id):
 
                 clean_sets.append({"reps": reps_val, "weight": weight_val})
                 db.session.add(WorkoutSet(
-                    session_id=session.id,
+                    session_id=workout_session.id,
                     template_exercise_id=template_ex_id,
                     exercise_name=name,
                     set_number=len(clean_sets),
@@ -351,17 +365,17 @@ def start_workout(template_id):
             flash('No sets were logged. Please add at least one set.', 'warning')
             return redirect(url_for('template.start_workout', **redirect_kwargs))
 
-        session.completed_at = datetime.utcnow()
+        workout_session.completed_at = datetime.utcnow()
         summary_text = '; '.join(summary_parts)
         if len(summary_text) > 250:
             summary_text = summary_text[:247] + '...'
-        session.summary = summary_text
+        workout_session.summary = summary_text
 
         db.session.commit()
         flash('Workout logged.', 'success')
         if target_user.id != current_user.id:
             return redirect(url_for('trainer.client_detail', member_id=target_user.id, view='calendar'))
-        return redirect(url_for('template.view_session', session_id=session.id))
+        return redirect(url_for('template.view_session', session_id=workout_session.id))
 
     # Build initial data using latest session as defaults
     last_session = (
@@ -441,14 +455,14 @@ def start_workout(template_id):
 @template_bp.route('/workouts/session/<int:session_id>')
 @login_required
 def view_session(session_id):
-    session = WorkoutSession.query.get_or_404(session_id)
-    if session.user_id != current_user.id and current_user.role != 'trainer':
+    workout_session = WorkoutSession.query.get_or_404(session_id)
+    if workout_session.user_id != current_user.id and current_user.role != 'trainer':
         flash('You do not have access to this session.', 'danger')
         return redirect(url_for('template.list_templates'))
 
     sets = (
         WorkoutSet.query
-        .filter_by(session_id=session.id)
+        .filter_by(session_id=workout_session.id)
         .order_by(WorkoutSet.exercise_name.asc(), WorkoutSet.set_number.asc())
         .all()
     )
@@ -494,10 +508,10 @@ def view_session(session_id):
             "sets": formatted_sets,
         })
 
-    duration_display = _human_duration(session.started_at, session.completed_at)
-    session_date = session.completed_at or session.started_at
+    duration_display = _human_duration(workout_session.started_at, workout_session.completed_at)
+    session_date = workout_session.completed_at or workout_session.started_at
     session_date_display = session_date.strftime('%B %d, %Y • %I:%M %p') if session_date else "--"
-    template_name = session.template.name if session.template else "Workout Session"
+    template_name = workout_session.template.name if workout_session.template else "Workout Session"
 
     return_to = request.args.get('return_to')
     return_date = request.args.get('date')
@@ -514,7 +528,7 @@ def view_session(session_id):
 
     return render_template(
         'view-session.html',
-        session=session,
+        workout_session=workout_session,
         exercise_details=exercise_details,
         duration_display=duration_display,
         total_volume=int(total_volume),

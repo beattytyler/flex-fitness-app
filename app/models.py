@@ -196,6 +196,17 @@ class TrainerMealIngredient(db.Model):
 
     food = db.relationship('Food')
 
+class AssignedMeal(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    meal_id = db.Column(db.Integer, db.ForeignKey('trainer_meal.id'), nullable=False)
+    trainer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    member_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    meal = db.relationship('TrainerMeal', backref=db.backref('assignments', lazy='dynamic'))
+    trainer = db.relationship('User', foreign_keys=[trainer_id])
+    member = db.relationship('User', foreign_keys=[member_id])
+
 
 class MemberMeal(db.Model):
     id = db.Column(db.Integer, primary_key=True)

@@ -446,15 +446,10 @@
                   {% set display_calories = totals.macro_calories if totals.macro_calories is not none else totals.calories %}
                   {% set calorie_pct = (display_calories / goal_value * 100) if goal_value else 0 %}
                   {% set clamped_calorie_pct = [calorie_pct, 200]|min %}
-                  {% if _theme == 'dark' %}
-                    {% set calorie_base_color = '#475569' %}
-                  {% else %}
-                    {% set calorie_base_color = '#cbd5f5' %}
-                  {% endif %}
+                  {% set _is_dark = (theme_mode or session.get('theme_mode') or 'light') == 'dark' %}
+                  {% set calorie_base_color = 'var(--calorie-ring-base)' %}
                   {% set calorie_ring_color = '#0d6efd' %}
                   <h5 class="card-title mb-4">Daily Calorie Goal</h5>
-                  {% set calorie_text_color = '#e2e8f0' if _theme == 'dark' else '#333' %}
-                  {% set calorie_sub_text_color = '#cbd5f5' if _theme == 'dark' else '#666' %}
                   <div class="d-flex justify-content-center align-items-center mb-3">
                     <svg class="progress-ring" width="200" height="200">
                       <circle
@@ -484,7 +479,7 @@
                         text-anchor="middle"
                         font-size="32"
                         font-weight="bold"
-                        fill="{{ calorie_text_color }}"
+                        fill="var(--calorie-ring-text)"
                       >
                         {{ display_calories | round(1) }}
                       </text>
@@ -493,7 +488,7 @@
                         y="115"
                         text-anchor="middle"
                         font-size="14"
-                        fill="{{ calorie_sub_text_color }}"
+                        fill="var(--calorie-ring-sub)"
                       >
                         / {{ goal_value | round(1) }} cal
                       </text>
@@ -981,33 +976,10 @@
           </div>
 
     {% set templates_active = request.endpoint in ['template.list_templates', 'template.view_template', 'template.start_workout', 'template.view_session'] %}
-
-    <nav class="bottom-nav shadow-sm">
-      <div class="container px-0">
-        <div class="d-flex justify-content-around align-items-center">
-          <a href="{{ url_for('member.dashboard') }}" class="nav-link {% if active_tab == 'dashboard' %}active{% endif %}">
-            <i class="bi bi-speedometer2"></i>
-            <span>Dashboard</span>
-          </a>
-          <a href="{{ url_for('member.dashboard', view='profile') }}" class="nav-link {% if active_tab == 'profile' %}active{% endif %}">
-            <i class="bi bi-person-circle"></i>
-            <span>Profile</span>
-          </a>
-          <a href="{{ url_for('member.member_summary') }}" class="nav-link {% if request.endpoint == 'member.member_summary' %}active{% endif %}">
-           <i class="bi bi-graph-up"></i>
-            <span>My Stats</span>
-          </a>
-          <a href="{{ url_for('template.list_templates') }}" class="nav-link {% if templates_active %}active{% endif %}">
-            <i class="bi bi-collection"></i>
-            <span>Templates</span>
-          </a>
-          <a href="{{ url_for('member.dashboard', view='calendar') }}" class="nav-link {% if active_tab == 'calendar' %}active{% endif %}">
-            <i class="bi bi-calendar-event"></i>
-            <span>Calendar</span>
-          </a>
-        </div>
-      </div>
-    </nav>
+    {% set member_dashboard_active = active_tab == 'dashboard' %}
+    {% set member_profile_active = active_tab == 'profile' %}
+    {% set member_calendar_active = active_tab == 'calendar' %}
+    {% include '_bottom_nav.html' %}
 
     <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

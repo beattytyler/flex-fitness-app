@@ -139,28 +139,7 @@
     </div>
   </div>
 
-  {% set trainer_clients_active = request.endpoint in ['trainer.dashboard_trainer', 'trainer.client_detail', 'trainer.client_summary_view'] %}
-  {% set templates_active = request.endpoint in ['template.list_templates', 'template.view_template', 'template.start_workout', 'template.view_session'] %}
-  {% set trainer_meals_active = request.endpoint in ['trainer.create_meal', 'trainer.edit_meal'] %}
-
-  <nav class="bottom-nav shadow-sm">
-    <div class="container px-0">
-      <div class="d-flex justify-content-around align-items-center">
-        <a href="{{ url_for('trainer.dashboard_trainer') }}" class="nav-link {% if trainer_clients_active %}active{% endif %}">
-          <i class="bi bi-people"></i>
-          <span>Clients</span>
-        </a>
-        <a href="{{ url_for('template.list_templates') }}" class="nav-link {% if templates_active %}active{% endif %}">
-          <i class="bi bi-collection"></i>
-          <span>Templates</span>
-        </a>
-        <a href="{{ url_for('trainer.create_meal') }}" class="nav-link {% if trainer_meals_active %}active{% endif %}">
-          <i class="bi bi-egg-fried"></i>
-          <span>Meals</span>
-        </a>
-      </div>
-    </div>
-  </nav>
+  {% include '_bottom_nav.html' %}
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
@@ -337,7 +316,9 @@
     });
 
     if (addCustomFoodBtn) {
-      addCustomFoodBtn.addEventListener("click", async () => {
+      addCustomFoodBtn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        const scrollY = window.scrollY;
         const name = customFoodName.value.trim();
         if (!name) {
           alert("Please provide a name for the custom food.");
@@ -392,6 +373,7 @@
           customFoodGrams.value = "";
           customFoodVolume.value = "";
           alert("Custom food created and added to the meal.");
+          window.scrollTo({ top: scrollY, behavior: "auto" });
         } catch (err) {
           console.error(err);
           alert("Error creating custom food.");

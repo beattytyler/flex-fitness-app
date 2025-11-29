@@ -31,6 +31,19 @@
       </p>
       <p class="text-muted">Client overview for {{ today.strftime('%B %d, %Y') }}</p>
     </div>
+    {% set last_client_id = session.get('trainer_last_client_id') if session else None %}
+    <ul class="nav nav-pills justify-content-center mb-4">
+      <li class="nav-item">
+        <a class="nav-link active" aria-current="page" href="{{ url_for('trainer.dashboard_trainer') }}">Client List</a>
+      </li>
+      <li class="nav-item">
+        {% if last_client_id %}
+          <a class="nav-link" href="{{ url_for('trainer.client_detail', member_id=last_client_id) }}">Client View</a>
+        {% else %}
+          <span class="nav-link disabled">Client View</span>
+        {% endif %}
+      </li>
+    </ul>
     {% if clients %}
       <div class="table-responsive">
         <table class="table table-striped align-middle shadow-sm">
@@ -70,28 +83,7 @@
 
   </div>
 
-  {% set trainer_clients_active = request.endpoint in ['trainer.dashboard_trainer', 'trainer.client_detail', 'trainer.client_summary_view'] %}
-  {% set trainer_templates_active = request.endpoint in ['template.list_templates', 'template.view_template', 'template.start_workout', 'template.view_session'] %}
-  {% set trainer_meals_active = request.endpoint in ['trainer.create_meal', 'trainer.edit_meal'] %}
-
-  <nav class="bottom-nav shadow-sm">
-    <div class="container px-0">
-      <div class="d-flex justify-content-around align-items-center">
-        <a href="{{ url_for('trainer.dashboard_trainer') }}" class="nav-link {% if trainer_clients_active %}active{% endif %}">
-          <i class="bi bi-people"></i>
-          <span>Clients</span>
-        </a>
-        <a href="{{ url_for('template.list_templates') }}" class="nav-link {% if trainer_templates_active %}active{% endif %}">
-          <i class="bi bi-collection"></i>
-          <span>Templates</span>
-        </a>
-        <a href="{{ url_for('trainer.create_meal') }}" class="nav-link {% if trainer_meals_active %}active{% endif %}">
-          <i class="bi bi-egg-fried"></i>
-          <span>Meals</span>
-        </a>
-      </div>
-    </div>
-  </nav>
+  {% include '_bottom_nav.html' %}
 
   <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

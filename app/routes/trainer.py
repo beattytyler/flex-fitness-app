@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import calendar as _calendar
 import math
 
-from flask import Blueprint, render_template, flash, redirect, url_for, request, abort, jsonify, current_app
+from flask import Blueprint, render_template, flash, redirect, url_for, request, abort, jsonify, current_app, session
 from flask_login import login_required, current_user
 from app import db
 from app.models import (
@@ -19,6 +19,7 @@ from app.models import (
     FoodMeasure,
     TrainerMeal,
     TrainerMealIngredient,
+    AssignedMeal,
     Message,
 )
 from app.services.nutrition import (
@@ -135,6 +136,8 @@ def client_detail(member_id):
         flash("Access denied.", "danger")
         return redirect(url_for('main.home'))
 
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
     client = User.query.filter_by(
         id=member_id,
         trainer_id=current_user.id,
@@ -146,6 +149,7 @@ def client_detail(member_id):
         return redirect(url_for('trainer.dashboard_trainer'))
 
     redirect_view = request.args.get('view')
+    session['trainer_last_client_id'] = client.id
 
     if request.method == 'POST':
         action = request.form.get('action', 'update_calories')
@@ -179,10 +183,14 @@ def client_detail(member_id):
             client.macro_target_mode = 'grams'
             if updated_macros or mode_changed:
                 db.session.commit()
-                flash("Custom macro targets updated.", "success")
+                if not is_ajax:
+                    flash("Custom macro targets updated.", "success")
             else:
-                flash("No macro changes detected.", "info")
+                if not is_ajax:
+                    flash("No macro changes detected.", "info")
 
+            if is_ajax:
+                return jsonify({"status": "success"})
             if redirect_view:
                 return redirect(url_for('trainer.client_detail', member_id=client.id, view=redirect_view))
             return redirect(url_for('trainer.client_detail', member_id=client.id))
@@ -225,10 +233,185 @@ def client_detail(member_id):
             client.macro_target_mode = 'percent'
             if ratio_changed or mode_changed:
                 db.session.commit()
-                flash("Macro percentages updated.", "success")
+                if not is_ajax:
+                    flash("Macro percentages updated.", "success")
             else:
-                flash("No macro percentage changes detected.", "info")
+                if not is_ajax:
+                    flash("No macro percentage changes detected.", "info")
 
+            if is_ajax:
+                return jsonify({"status": "success"})
+            if redirect_view:
+                return redirect(url_for('trainer.client_detail', member_id=client.id, view=redirect_view))
+            return redirect(url_for('trainer.client_detail', member_id=client.id))
+        elif action == 'assign_template':
+            template_id_raw = request.form.get('template_id')
+            redirect_view = request.form.get('redirect_view') or redirect_view
+            if not template_id_raw:
+                if not is_ajax:
+                    flash("Select a template to assign.", "warning")
+            else:
+                try:
+                    template_id_val = int(template_id_raw)
+                except (TypeError, ValueError):
+                    template_id_val = None
+                tpl = (
+                    ExerciseTemplate.query.filter_by(id=template_id_val, owner_id=current_user.id).first()
+                    if template_id_val
+                    else None
+                )
+                if not tpl:
+                    if not is_ajax:
+                        flash("Template not found.", "danger")
+                else:
+                    existing = AssignedTemplate.query.filter_by(
+                        template_id=tpl.id,
+                        trainer_id=current_user.id,
+                        member_id=client.id,
+                    ).first()
+                    if existing:
+                        if not is_ajax:
+                            flash("Template already assigned to this client.", "info")
+                    else:
+                        db.session.add(
+                            AssignedTemplate(
+                                template_id=tpl.id,
+                                trainer_id=current_user.id,
+                                member_id=client.id,
+                            )
+                        )
+                        db.session.commit()
+                        if is_ajax:
+                            return jsonify({
+                                "status": "success",
+                                "template": {
+                                    "id": tpl.id,
+                                    "name": tpl.name,
+                                    "description": tpl.description,
+                                }
+                            })
+                        flash(f"Assigned '{tpl.name}' to {client.first_name}.", "success")
+            if is_ajax:
+                return jsonify({"status": "error", "message": "Unable to assign template."}), 400
+            if redirect_view:
+                return redirect(url_for('trainer.client_detail', member_id=client.id, view=redirect_view))
+            return redirect(url_for('trainer.client_detail', member_id=client.id))
+        elif action == 'unassign_template':
+            template_id_raw = request.form.get('template_id')
+            redirect_view = request.form.get('redirect_view') or redirect_view
+            try:
+                template_id_val = int(template_id_raw)
+            except (TypeError, ValueError):
+                template_id_val = None
+            assignment = (
+                AssignedTemplate.query.filter_by(
+                    template_id=template_id_val,
+                    trainer_id=current_user.id,
+                    member_id=client.id,
+                ).first()
+                if template_id_val
+                else None
+            )
+            if not assignment:
+                if not is_ajax:
+                    flash("Template not assigned to this client.", "warning")
+            else:
+                tpl_name = assignment.template.name if assignment.template else "Template"
+                db.session.delete(assignment)
+                db.session.commit()
+                if is_ajax:
+                    return jsonify({
+                        "status": "success",
+                        "template": {
+                            "id": template_id_val,
+                            "name": tpl_name,
+                        }
+                    })
+                flash("Template removed from client.", "success")
+            if is_ajax:
+                return jsonify({"status": "error", "message": "Unable to remove template."}), 400
+            if redirect_view:
+                return redirect(url_for('trainer.client_detail', member_id=client.id, view=redirect_view))
+            return redirect(url_for('trainer.client_detail', member_id=client.id))
+        elif action == 'assign_meal':
+            meal_id_raw = request.form.get('meal_id')
+            redirect_view = request.form.get('redirect_view') or redirect_view
+            if not meal_id_raw:
+                if not is_ajax:
+                    flash("Select a meal to assign.", "warning")
+            else:
+                try:
+                    meal_id_val = int(meal_id_raw)
+                except (TypeError, ValueError):
+                    meal_id_val = None
+                meal = (
+                    TrainerMeal.query.filter_by(id=meal_id_val, trainer_id=current_user.id).first()
+                    if meal_id_val
+                    else None
+                )
+                if not meal:
+                    if not is_ajax:
+                        flash("Meal not found.", "danger")
+                else:
+                    existing = AssignedMeal.query.filter_by(
+                        meal_id=meal.id,
+                        trainer_id=current_user.id,
+                        member_id=client.id,
+                    ).first()
+                    if existing or meal.member_id == client.id:
+                        if not is_ajax:
+                            flash("Meal already assigned to this client.", "info")
+                    else:
+                        db.session.add(
+                            AssignedMeal(
+                                meal_id=meal.id,
+                                trainer_id=current_user.id,
+                                member_id=client.id,
+                            )
+                        )
+                        db.session.commit()
+                    if is_ajax:
+                            return jsonify({"status": "success", "meal": serialize_meal(meal)})
+                    flash(f"Assigned meal '{meal.name}' to {client.first_name}.", "success")
+            if is_ajax:
+                return jsonify({"status": "error", "message": "Unable to assign meal."}), 400
+            if redirect_view:
+                return redirect(url_for('trainer.client_detail', member_id=client.id, view=redirect_view))
+            return redirect(url_for('trainer.client_detail', member_id=client.id))
+        elif action == 'unassign_meal':
+            meal_id_raw = request.form.get('meal_id')
+            redirect_view = request.form.get('redirect_view') or redirect_view
+            try:
+                meal_id_val = int(meal_id_raw)
+            except (TypeError, ValueError):
+                meal_id_val = None
+            meal = (
+                TrainerMeal.query.filter_by(id=meal_id_val, trainer_id=current_user.id).first()
+                if meal_id_val
+                else None
+            )
+            if not meal:
+                if not is_ajax:
+                    flash("Meal not found.", "danger")
+            else:
+                deleted = AssignedMeal.query.filter_by(
+                    meal_id=meal.id,
+                    trainer_id=current_user.id,
+                    member_id=client.id,
+                ).delete()
+                if meal.member_id == client.id:
+                    meal.member_id = None
+                    deleted = deleted + 1
+                if deleted:
+                    db.session.commit()
+                    if is_ajax:
+                        return jsonify({"status": "success", "meal": {"id": meal.id, "name": meal.name, "slot": meal.meal_slot}})
+                    flash(f"Meal '{meal.name}' removed from {client.first_name}.", "success")
+                else:
+                    if not is_ajax:
+                        flash("Meal was not assigned to this client.", "info")
+            if is_ajax:
+                return jsonify({"status": "error", "message": "Unable to remove meal."}), 400
             if redirect_view:
                 return redirect(url_for('trainer.client_detail', member_id=client.id, view=redirect_view))
             return redirect(url_for('trainer.client_detail', member_id=client.id))
@@ -288,6 +471,8 @@ def client_detail(member_id):
         .order_by(AssignedTemplate.assigned_at.desc())
         .all()
     )
+    assigned_meals = AssignedMeal.query.filter_by(trainer_id=current_user.id, member_id=client.id).all()
+    assigned_meal_ids = {am.meal_id for am in assigned_meals}
 
     recent_sessions = (
         WorkoutSession.query
@@ -417,15 +602,13 @@ def client_detail(member_id):
                 'sets': workout_sets,
             })
 
+    meal_filters = [TrainerMeal.member_id == client.id]
+    if assigned_meal_ids:
+        meal_filters.append(TrainerMeal.id.in_(assigned_meal_ids))
     trainer_meals = (
         TrainerMeal.query
         .filter(TrainerMeal.trainer_id == current_user.id)
-        .filter(
-            or_(
-                TrainerMeal.member_id == client.id,
-                TrainerMeal.member_id.is_(None)
-            )
-        )
+        .filter(or_(*meal_filters))
         .order_by(TrainerMeal.meal_slot.asc(), TrainerMeal.name.asc())
         .all()
     )
@@ -436,6 +619,18 @@ def client_detail(member_id):
         "carbs": client.custom_carb_target_g,
         "fats": client.custom_fat_target_g,
     }
+    my_templates = (
+        ExerciseTemplate.query
+        .filter_by(owner_id=current_user.id)
+        .order_by(ExerciseTemplate.name.asc())
+        .all()
+    )
+    assigned_template_ids = {assignment.template_id for assignment in assigned_templates}
+    assignable_templates = [tpl for tpl in my_templates if tpl.id not in assigned_template_ids]
+    assignable_meals = [
+        meal for meal in TrainerMeal.query.filter_by(trainer_id=current_user.id).order_by(TrainerMeal.name.asc()).all()
+        if meal.id not in assigned_meal_ids and meal.member_id != client.id
+    ]
 
     return render_template(
         'client-detail.html',
@@ -458,6 +653,9 @@ def client_detail(member_id):
         meals_by_slot=meals_by_slot,
         meal_slot_labels=MEAL_SLOT_LABELS,
         macro_targets=macro_targets,
+        assignable_templates=assignable_templates,
+        assignable_meals=assignable_meals,
+        assigned_meal_ids=assigned_meal_ids,
     )
 
 

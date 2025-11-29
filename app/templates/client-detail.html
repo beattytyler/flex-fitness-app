@@ -32,8 +32,21 @@
         <h1 class="h3 mb-1">{{ client.first_name }} {{ client.last_name }}</h1>
         <div class="text-muted">Client overview</div>
       </div>
-      <a href="{{ url_for('trainer.dashboard_trainer') }}" class="btn btn-outline-secondary">Back</a>
     </div>
+    {% set last_client_id = session.get('trainer_last_client_id') if session else None %}
+    <ul class="nav nav-pills mb-4">
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('trainer.dashboard_trainer') }}">Client List</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link active" aria-current="page" href="{{ url_for('trainer.client_detail', member_id=client.id) }}">Client View</a>
+      </li>
+      {% if last_client_id and last_client_id != client.id %}
+        <li class="nav-item ms-auto">
+          <a class="nav-link" href="{{ url_for('trainer.client_detail', member_id=last_client_id) }}">Last Viewed</a>
+        </li>
+      {% endif %}
+    </ul>
 
     <ul class="nav nav-pills mb-4">
       <li class="nav-item">
@@ -91,7 +104,7 @@
                         </div>
                       </a>
                     {% else %}
-                      <div class="p-2 h-100 border bg-light calendar-day"></div>
+                      <div class="p-2 h-100 border bg-light calendar-day calendar-day-empty"></div>
                     {% endif %}
                   </div>
                 {% endfor %}
@@ -321,10 +334,27 @@
       <div class="card mt-4">
         <div class="card-body">
           <h5 class="card-title">Assigned Templates</h5>
+          <form class="row g-2 align-items-center mb-3 ajax-action" method="POST" data-action="assign-template" action="{{ url_for('trainer.client_detail', member_id=client.id, view=view) }}">
+            <input type="hidden" name="action" value="assign_template">
+            <input type="hidden" name="redirect_view" value="{{ view }}">
+            <div class="col-md-8 col-lg-9">
+              <label class="form-label small text-muted mb-1">Assign a template</label>
+              <select class="form-select form-select-sm" name="template_id" id="assignTemplateSelect">
+                <option value="">Select a template</option>
+                {% for tpl in assignable_templates %}
+                  <option value="{{ tpl.id }}" data-desc="{{ tpl.description or '' }}">{{ tpl.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4 col-lg-3 d-grid">
+              <label class="form-label small text-muted mb-1">&nbsp;</label>
+              <button type="submit" class="btn btn-outline-primary btn-sm">Assign Template</button>
+            </div>
+          </form>
           {% if assigned_templates %}
-            <div class="list-group list-group-flush">
+            <div id="assignedTemplateList" class="list-group list-group-flush">
               {% for assignment in assigned_templates %}
-                <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div class="list-group-item d-flex justify-content-between align-items-center template-item" data-template-id="{{ assignment.template_id }}">
                   <div>
                     <div class="fw-semibold">{{ assignment.template.name }}</div>
                     <div class="text-muted small">{{ assignment.template.description or 'No description provided.' }}</div>
@@ -332,12 +362,18 @@
                   <div class="btn-group">
                     <a href="{{ url_for('template.view_template', template_id=assignment.template_id) }}" class="btn btn-outline-secondary btn-sm">View</a>
                     <a href="{{ url_for('template.start_workout', template_id=assignment.template_id, for_user_id=client.id) }}" class="btn btn-sm btn-success">Log Workout</a>
+                    <form method="POST" class="d-inline ajax-action" data-action="unassign-template" action="{{ url_for('trainer.client_detail', member_id=client.id, view=view) }}">
+                      <input type="hidden" name="action" value="unassign_template">
+                      <input type="hidden" name="template_id" value="{{ assignment.template_id }}">
+                      <input type="hidden" name="redirect_view" value="{{ view }}">
+                      <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
+                    </form>
                   </div>
                 </div>
               {% endfor %}
             </div>
           {% else %}
-            <p class="text-muted mb-0">No templates assigned yet.</p>
+            <p class="text-muted mb-0" id="assignedTemplateEmpty">No templates assigned yet.</p>
           {% endif %}
         </div>
       </div>
@@ -347,6 +383,28 @@
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="card-title mb-0">Custom Meal Plan</h5>
             <a href="{{ url_for('trainer.create_meal', member_id=client.id) }}" class="btn btn-sm btn-primary">Add Meal</a>
+          </div>
+          <div class="mb-3">
+            <form class="row g-2 align-items-center ajax-action" method="POST" data-action="assign-meal" action="{{ url_for('trainer.client_detail', member_id=client.id, view=view) }}">
+              <input type="hidden" name="action" value="assign_meal">
+              <input type="hidden" name="redirect_view" value="{{ view }}">
+              <div class="col-md-8 col-lg-9">
+                <label class="form-label small text-muted mb-1">Assign an existing meal</label>
+                <select class="form-select form-select-sm" name="meal_id" id="assignMealSelect">
+                  <option value="">Select a meal</option>
+                  {% for meal in assignable_meals %}
+                    <option value="{{ meal.id }}" data-slot="{{ meal.meal_slot }}" data-description="{{ meal.description or '' }}">{{ meal.name }}{% if meal.member_id %} (created for another client){% endif %}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4 col-lg-3 d-grid">
+                <label class="form-label small text-muted mb-1">&nbsp;</label>
+                <button type="submit" class="btn btn-outline-primary btn-sm">Assign Meal</button>
+              </div>
+            </form>
+            {% if not assignable_meals %}
+              <p class="text-muted small mb-0 mt-2">No unassigned meals available. Create a new meal or unassign one from another client.</p>
+            {% endif %}
           </div>
           <ul class="nav nav-pills" id="mealPlanTabs" role="tablist">
             {% for slot, label in meal_slot_labels.items() %}
@@ -361,26 +419,31 @@
                 {% set slot_meals = meals_by_slot.get(slot) %}
                 {% if slot_meals %}
                   {% for meal in slot_meals %}
-                    <div class="border rounded-3 p-3 mb-3">
-                      <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                          <h6 class="mb-1">
-                            {{ meal.name }}
-                            {% if not meal.member_id %}
-                              <span class="badge bg-secondary ms-1">All clients</span>
+                    <div class="border rounded-3 p-3 mb-3 meal-card" data-meal-id="{{ meal.id }}">
+                        <div class="d-flex justify-content-between align-items-start">
+                          <div>
+                            <h6 class="mb-1">
+                              {{ meal.name }}
+                              {% if meal.member_id == client.id %}
+                                <span class="badge bg-primary ms-1">Custom</span>
+                              {% elif meal.id in assigned_meal_ids %}
+                                <span class="badge bg-secondary ms-1">Assigned</span>
+                              {% endif %}
+                            </h6>
+                            {% if meal.description %}
+                              <p class="mb-2 text-muted small">{{ meal.description }}</p>
                             {% endif %}
-                          </h6>
-                          {% if meal.description %}
-                            <p class="mb-2 text-muted small">{{ meal.description }}</p>
-                          {% endif %}
                           <p class="mb-2 small text-secondary">
                             {{ meal.macros.calories }} cal · {{ meal.macros.protein }}g protein · {{ meal.macros.carbs }}g carbs · {{ meal.macros.fats }}g fat
                           </p>
                         </div>
                         <div class="btn-group btn-group-sm">
                           <a href="{{ url_for('trainer.edit_meal', member_id=client.id, meal_id=meal.id) }}" class="btn btn-outline-secondary">Edit</a>
-                          <form method="POST" action="{{ url_for('trainer.delete_meal', member_id=client.id, meal_id=meal.id) }}" onsubmit="return confirm('Delete this meal?');">
-                            <button type="submit" class="btn btn-outline-danger">Delete</button>
+                          <form method="POST" class="d-inline ajax-action" data-action="unassign-meal" action="{{ url_for('trainer.client_detail', member_id=client.id, view=view) }}">
+                            <input type="hidden" name="action" value="unassign_meal">
+                            <input type="hidden" name="meal_id" value="{{ meal.id }}">
+                            <input type="hidden" name="redirect_view" value="{{ view }}">
+                            <button type="submit" class="btn btn-outline-danger">Remove</button>
                           </form>
                         </div>
                       </div>
@@ -464,26 +527,181 @@
   {% set templates_active = request.endpoint in ['template.list_templates', 'template.view_template', 'template.start_workout', 'template.view_session'] %}
   {% set trainer_meals_active = request.endpoint in ['trainer.create_meal', 'trainer.edit_meal'] %}
 
-  <nav class="bottom-nav shadow-sm">
-    <div class="container px-0">
-      <div class="d-flex justify-content-around align-items-center">
-        <a href="{{ url_for('trainer.dashboard_trainer') }}" class="nav-link {% if trainer_clients_active %}active{% endif %}">
-          <i class="bi bi-people"></i>
-          <span>Clients</span>
-        </a>
-        <a href="{{ url_for('template.list_templates') }}" class="nav-link {% if templates_active %}active{% endif %}">
-          <i class="bi bi-collection"></i>
-          <span>Templates</span>
-        </a>
-        <a href="{{ url_for('trainer.create_meal') }}" class="nav-link {% if trainer_meals_active %}active{% endif %}">
-          <i class="bi bi-egg-fried"></i>
-          <span>Meals</span>
-        </a>
-      </div>
-    </div>
-  </nav>
+  {% include '_bottom_nav.html' %}
 
   <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (function() {
+      const clientId = {{ client.id }};
+      const viewTemplateUrl = (id) => `/templates/${id}`;
+      const startWorkoutUrl = (id) => `/templates/workouts/start/${id}?for_user_id=${clientId}`;
+      const editMealUrl = (mealId) => `/trainer/clients/${clientId}/meals/${mealId}/edit`;
+      const currentUrl = window.location.pathname + window.location.search;
+
+      function showError(message) {
+        if (!message) return;
+        alert(message);
+      }
+
+      function createTemplateItem(tpl) {
+        const item = document.createElement("div");
+        item.className = "list-group-item d-flex justify-content-between align-items-center template-item";
+        item.dataset.templateId = tpl.id;
+        item.innerHTML = `
+          <div>
+            <div class="fw-semibold">${tpl.name}</div>
+            <div class="text-muted small">${tpl.description || "No description provided."}</div>
+          </div>
+          <div class="btn-group">
+            <a href="${viewTemplateUrl(tpl.id)}" class="btn btn-outline-secondary btn-sm">View</a>
+            <a href="${startWorkoutUrl(tpl.id)}" class="btn btn-sm btn-success">Log Workout</a>
+            <form method="POST" action="${currentUrl}" class="d-inline ajax-action" data-action="unassign-template">
+              <input type="hidden" name="action" value="unassign_template">
+              <input type="hidden" name="template_id" value="${tpl.id}">
+              <input type="hidden" name="redirect_view" value="{{ view }}">
+              <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
+            </form>
+          </div>
+        `;
+        return item;
+      }
+
+      function ensureTemplateList() {
+        let list = document.getElementById("assignedTemplateList");
+        if (!list) {
+          const emptyMsg = document.getElementById("assignedTemplateEmpty");
+          if (emptyMsg) emptyMsg.remove();
+          list = document.createElement("div");
+          list.id = "assignedTemplateList";
+          list.className = "list-group list-group-flush";
+          const container = document.querySelector(".card-body");
+          if (container) {
+            container.appendChild(list);
+          }
+        }
+        return list;
+      }
+
+      function createMealCard(meal) {
+        const card = document.createElement("div");
+        card.className = "border rounded-3 p-3 mb-3 meal-card";
+        card.dataset.mealId = meal.id;
+        card.innerHTML = `
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="mb-1">
+                ${meal.name}
+                <span class="badge bg-secondary ms-1">Assigned</span>
+              </h6>
+              ${meal.description ? `<p class="mb-2 text-muted small">${meal.description}</p>` : ""}
+              <p class="mb-2 small text-secondary">
+                ${Math.round(meal.macros.calories)} cal · ${Math.round(meal.macros.protein)}g protein · ${Math.round(meal.macros.carbs)}g carbs · ${Math.round(meal.macros.fats)}g fat
+              </p>
+            </div>
+            <div class="btn-group btn-group-sm">
+              <a href="${editMealUrl(meal.id)}" class="btn btn-outline-secondary">Edit</a>
+              <form method="POST" action="${currentUrl}" class="d-inline ajax-action" data-action="unassign-meal">
+                <input type="hidden" name="action" value="unassign_meal">
+                <input type="hidden" name="meal_id" value="${meal.id}">
+                <input type="hidden" name="redirect_view" value="{{ view }}">
+                <button type="submit" class="btn btn-outline-danger">Remove</button>
+              </form>
+            </div>
+          </div>
+        `;
+        return card;
+      }
+
+      document.addEventListener("submit", async (e) => {
+        const form = e.target;
+        if (!form.matches("form.ajax-action")) return;
+        e.preventDefault();
+        const actionType = form.dataset.action;
+        const formData = new FormData(form);
+        try {
+          const res = await fetch(form.getAttribute("action") || currentUrl, {
+            method: "POST",
+            body: formData,
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            credentials: "same-origin",
+          });
+          const text = await res.text();
+          let data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (_) {
+            data = null;
+          }
+          if (!res.ok || !data || data.status !== "success") {
+            const message = (data && data.message) || text || "Unable to process request.";
+            showError(message);
+            return;
+          }
+
+          if (actionType === "assign-template") {
+            if (data.template) {
+              const select = document.getElementById("assignTemplateSelect");
+              if (select) {
+                const opt = select.querySelector(`option[value="${data.template.id}"]`);
+                if (opt) opt.remove();
+              }
+              const list = ensureTemplateList();
+              if (list) list.prepend(createTemplateItem(data.template));
+            }
+          } else if (actionType === "unassign-template") {
+            const tplId = formData.get("template_id");
+            const tplName = data.template ? data.template.name : `Template ${tplId}`;
+            const item = form.closest(".template-item");
+            if (item) item.remove();
+            const select = document.getElementById("assignTemplateSelect");
+            if (select && tplId) {
+              const option = document.createElement("option");
+              option.value = tplId;
+              option.textContent = tplName;
+              select.appendChild(option);
+            }
+            const list = document.getElementById("assignedTemplateList");
+            if (list && !list.querySelector(".template-item")) {
+              list.remove();
+              const msg = document.createElement("p");
+              msg.id = "assignedTemplateEmpty";
+              msg.className = "text-muted mb-0";
+              msg.textContent = "No templates assigned yet.";
+              const container = document.querySelector(".card-body");
+              if (container) container.appendChild(msg);
+            }
+          } else if (actionType === "assign-meal") {
+            if (data.meal) {
+              const select = document.getElementById("assignMealSelect");
+              if (select) {
+                const opt = select.querySelector(`option[value="${data.meal.id}"]`);
+                if (opt) opt.remove();
+              }
+              const panel = document.getElementById(`panel-${data.meal.slot}`);
+              if (panel) panel.prepend(createMealCard(data.meal));
+            }
+          } else if (actionType === "unassign-meal") {
+            const mealId = formData.get("meal_id");
+            const mealName = data.meal ? data.meal.name : `Meal ${mealId}`;
+            const mealSlot = data.meal ? data.meal.slot : null;
+            const card = form.closest(".meal-card");
+            if (card) card.remove();
+            const select = document.getElementById("assignMealSelect");
+            if (select && mealId) {
+              const option = document.createElement("option");
+              option.value = mealId;
+              option.textContent = mealName;
+              if (mealSlot) option.dataset.slot = mealSlot;
+              select.appendChild(option);
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          showError("Unable to process request.");
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

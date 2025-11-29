@@ -84,51 +84,7 @@
     {% endif %}
   </div>
 
-  {% set trainer_clients_active = request.endpoint in ['trainer.dashboard_trainer', 'trainer.client_detail', 'trainer.client_summary_view'] %}
-  {% set templates_active = request.endpoint in ['template.list_templates', 'template.view_template', 'template.start_workout', 'template.view_session'] %}
-  {% set trainer_meals_active = request.endpoint in ['trainer.create_meal', 'trainer.edit_meal'] %}
-
-  <nav class="bottom-nav shadow-sm">
-    <div class="container px-0">
-      <div class="d-flex justify-content-around align-items-center">
-        {% if user.role == 'trainer' %}
-          <a href="{{ url_for('trainer.dashboard_trainer') }}" class="nav-link {% if trainer_clients_active %}active{% endif %}">
-            <i class="bi bi-people"></i>
-            <span>Clients</span>
-          </a>
-          <a href="{{ url_for('template.list_templates') }}" class="nav-link {% if templates_active %}active{% endif %}">
-            <i class="bi bi-collection"></i>
-            <span>Templates</span>
-          </a>
-          <a href="{{ url_for('trainer.create_meal') }}" class="nav-link {% if trainer_meals_active %}active{% endif %}">
-            <i class="bi bi-egg-fried"></i>
-            <span>Meals</span>
-          </a>
-        {% else %}
-          <a href="{{ url_for('member.dashboard') }}" class="nav-link {% if request.endpoint == 'member.dashboard' and request.args.get('view') not in ['profile', 'calendar'] %}active{% endif %}">
-            <i class="bi bi-speedometer2"></i>
-            <span>Dashboard</span>
-          </a>
-          <a href="{{ url_for('member.dashboard', view='profile') }}" class="nav-link {% if request.endpoint == 'member.dashboard' and request.args.get('view') == 'profile' %}active{% endif %}">
-            <i class="bi bi-person-circle"></i>
-            <span>Profile</span>
-          </a>
-          <a href="{{ url_for('member.member_summary') }}" class="nav-link {% if request.endpoint == 'member.member_summary' %}active{% endif %}">
-            <i class="bi bi-graph-up"></i>
-            <span>My Stats</span>
-          </a>
-          <a href="{{ url_for('template.list_templates') }}" class="nav-link {% if templates_active %}active{% endif %}">
-            <i class="bi bi-collection"></i>
-            <span>Templates</span>
-          </a>
-          <a href="{{ url_for('member.dashboard', view='calendar') }}" class="nav-link {% if request.endpoint == 'member.dashboard' and request.args.get('view') == 'calendar' %}active{% endif %}">
-            <i class="bi bi-calendar-event"></i>
-            <span>Calendar</span>
-          </a>
-        {% endif %}
-      </div>
-    </div>
-  </nav>
+  {% include '_bottom_nav.html' %}
 
   <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
