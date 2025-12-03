@@ -125,6 +125,8 @@ def remove_client(member_id):
     client_name = f"{client.first_name} {client.last_name}"
     client.trainer_id = None
     db.session.commit()
+    if session.get('trainer_last_client_id') == client.id:
+        session.pop('trainer_last_client_id', None)
     flash(f"Removed {client_name} from your client list.", "success")
     return redirect(url_for('trainer.dashboard_trainer'))
 
@@ -948,6 +950,7 @@ def client_summary_view(member_id):
         return redirect(url_for('trainer.dashboard_trainer'))
 
     client = _get_trainer_client(member_id)
+    session['trainer_last_client_id'] = client.id
     macro_week_param = request.args.get("macro_week", type=int)
     context = build_member_summary_context(client, macro_week_param)
     macro_week_prev = context.get("macro_week_prev")

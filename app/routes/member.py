@@ -1683,11 +1683,9 @@ def member_summary():
 # -----------------------------
 @member_bp.route("/logout")
 def logout():
-    theme_pref = getattr(current_user, "theme_mode", None)
     logout_user()
-    preserved_theme = theme_pref or session.get("theme_mode") or "light"
     session.clear()  # Clears the entire session
-    session["theme_mode"] = preserved_theme
+    session["theme_mode"] = "light"
     flash("You have been logged out successfully.", "success")
     return redirect(url_for("auth.login_member"))
 

@@ -162,6 +162,12 @@ html {
   text-align: center;
 }
 
+.bottom-nav .nav-link.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: default;
+}
+
 .bottom-nav .nav-icon {
   width: 22px;
   height: 22px;
@@ -181,6 +187,86 @@ body.app-shell[data-theme="dark"] .bottom-nav {
 
 body.app-shell[data-theme="dark"] .bottom-nav .nav-link {
   color: #94a3b8;
+}
+
+body.trainer-dashboard-page .trainer-client-table td {
+  vertical-align: middle;
+}
+
+@media (max-width: 768px) {
+  body.trainer-dashboard-page .trainer-client-table,
+  body.trainer-dashboard-page .trainer-client-table tbody,
+  body.trainer-dashboard-page .trainer-client-table tr,
+  body.trainer-dashboard-page .trainer-client-table td {
+    display: block;
+    width: 100%;
+  }
+
+  body.trainer-dashboard-page .trainer-client-table thead {
+    display: none;
+  }
+
+  body.trainer-dashboard-page .trainer-client-table tr {
+    border: 1px solid rgba(15,23,42,0.08);
+    border-radius: 1rem;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+    background: #fff;
+  }
+
+  body.trainer-dashboard-page .trainer-client-table td {
+    padding: 0.25rem 0;
+    border: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  body.trainer-dashboard-page .trainer-client-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #6c757d;
+    flex: 0 0 auto;
+  }
+
+  body.trainer-dashboard-page .trainer-client-table td[data-label="Actions"] {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  body.trainer-dashboard-page .client-action-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  body.trainer-dashboard-page .client-action-buttons .btn,
+  body.trainer-dashboard-page .client-action-buttons form {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  body.trainer-client-view-page .client-view-tabs {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  body.trainer-client-view-page .client-view-tabs .nav-link {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+.template-editor-header .btn-sm {
+  white-space: nowrap;
+}
+
+.template-search-card {
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  margin-bottom: 1.75rem;
 }
 
 .macro-card.protein {

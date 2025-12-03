@@ -1,5 +1,6 @@
 {# Shared bottom navigation for trainer and member views #}
-{% set trainer_clients_active = trainer_clients_active if trainer_clients_active is defined else request.endpoint in ['trainer.dashboard_trainer', 'trainer.client_detail', 'trainer.client_summary_view'] %}
+{% set trainer_client_list_active = trainer_client_list_active if trainer_client_list_active is defined else request.endpoint in ['trainer.dashboard_trainer'] %}
+{% set trainer_client_view_active = trainer_client_view_active if trainer_client_view_active is defined else request.endpoint in ['trainer.client_detail', 'trainer.client_summary_view'] %}
 {% set trainer_templates_active = trainer_templates_active if trainer_templates_active is defined else request.endpoint in ['template.list_templates', 'template.view_template', 'template.start_workout', 'template.view_session'] %}
 {% set trainer_meals_active = trainer_meals_active if trainer_meals_active is defined else request.endpoint in ['trainer.create_meal', 'trainer.edit_meal'] %}
 {% set member_dashboard_active = member_dashboard_active if member_dashboard_active is defined else (request.endpoint == 'member.dashboard' and request.args.get('view') not in ['profile', 'calendar']) %}
@@ -7,25 +8,42 @@
 {% set member_stats_active = member_stats_active if member_stats_active is defined else request.endpoint in ['member.member_summary'] %}
 {% set member_calendar_active = member_calendar_active if member_calendar_active is defined else (request.endpoint == 'member.dashboard' and request.args.get('view') == 'calendar') %}
 
-{% set last_client_id = session.get('trainer_last_client_id') if session else None %}
-{% if last_client_id %}
-  {% set trainer_clients_url = url_for('trainer.client_detail', member_id=last_client_id) %}
+{% set selected_client_id = session.get('trainer_last_client_id') if session else None %}
+{% if selected_client_id %}
+  {% set trainer_client_view_url = url_for('trainer.client_detail', member_id=selected_client_id) %}
 {% else %}
-  {% set trainer_clients_url = url_for('trainer.dashboard_trainer') %}
+  {% set trainer_client_view_url = None %}
 {% endif %}
 
 <nav class="bottom-nav shadow-sm">
   <div class="container px-0">
     <div class="d-flex justify-content-around align-items-center">
       {% if current_user.is_authenticated and current_user.role == 'trainer' %}
-        <a href="{{ trainer_clients_url }}" class="nav-link {% if trainer_clients_active %}active{% endif %}">
+        <a href="{{ url_for('trainer.dashboard_trainer') }}" class="nav-link {% if trainer_client_list_active %}active{% endif %}">
           <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M9 10a3 3 0 1 1 0-6 3 3 0 0 1 0 6zM17 10a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" />
             <path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1" />
             <path d="M14 14h2a5 5 0 0 1 5 5v1" />
           </svg>
-          <span>Clients</span>
+          <span>Client List</span>
         </a>
+        {% if trainer_client_view_url %}
+        <a href="{{ trainer_client_view_url }}" class="nav-link {% if trainer_client_view_active %}active{% endif %}">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="8" r="3" />
+            <path d="M5 19v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1" />
+          </svg>
+          <span>Client View</span>
+        </a>
+        {% else %}
+        <span class="nav-link disabled" role="link" aria-disabled="true" title="Select a client from the list">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="8" r="3" />
+            <path d="M5 19v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1" />
+          </svg>
+          <span>Client View</span>
+        </span>
+        {% endif %}
         <a href="{{ url_for('template.list_templates') }}" class="nav-link {% if trainer_templates_active %}active{% endif %}">
           <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
             <rect x="4" y="5" width="16" height="3" rx="1" />
@@ -58,10 +76,11 @@
         </a>
         <a href="{{ url_for('member.member_summary') }}" class="nav-link {% if member_stats_active %}active{% endif %}">
           <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 19V9" />
-            <path d="M10 19V5" />
-            <path d="M16 19v-7" />
-            <path d="M4 15l6-6 6 4 4-6" />
+            <path d="M4 19h16" />
+            <path d="M6 19v-6" />
+            <path d="M10 19V7" />
+            <path d="M14 19v-3" />
+            <path d="M18 19v-9" />
           </svg>
           <span>My Stats</span>
         </a>

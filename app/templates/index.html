@@ -8,28 +8,31 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
-<body class="app-shell index-page" data-theme="{{ theme_mode or 'light' }}">
+<body class="app-shell index-page" data-theme="light">
 
-  <!-- Persistent blue navbar with Instagram link -->
-  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-    <div class="container d-flex align-items-center justify-content-between">
-      <a 
-        class="nav-link text-white d-flex align-items-center gap-2" 
-        href="https://www.instagram.com/flextrainingseries/" 
-        target="_blank" 
-        rel="noopener noreferrer"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-instagram" viewBox="0 0 16 16">
-          <path d="M8 0C5.829 0 5.555.01 4.703.048 3.85.088 3.27.222 2.76.42a3.9 3.9 0 0 0-1.417.923A3.9 3.9 0 0 0 .42 2.76C.222 3.27.087 3.85.048 4.703.01 5.555 0 5.829 0 8s.01 2.445.048 3.297c.04.853.174 1.433.372 1.943.198.51.46.957.923 1.417.46.46.907.725 1.417.923.51.198 1.09.333 1.943.372C5.555 15.99 5.829 16 8 16s2.445-.01 3.297-.048c.853-.04 1.433-.174 1.943-.372a3.9 3.9 0 0 0 1.417-.923 3.9 3.9 0 0 0 .923-1.417c.198-.51.333-1.09.372-1.943C15.99 10.445 16 10.171 16 8s-.01-2.445-.048-3.297c-.04-.853-.174-1.433-.372-1.943a3.9 3.9 0 0 0-.923-1.417A3.9 3.9 0 0 0 13.24.42c-.51-.198-1.09-.333-1.943-.372C10.445.01 10.171 0 8 0Zm0 3.89a4.11 4.11 0 1 1 0 8.22 4.11 4.11 0 0 1 0-8.22Zm5.2-.84a.96.96 0 1 1-1.92 0 .96.96 0 0 1 1.92 0Z"/>
-        </svg>
-        Instagram
-      </a>
-    </div>
-  </nav>
+  <!-- Instagram icon link -->
+  <a 
+    class="instagram-link" 
+    href="https://www.instagram.com/flextrainingseries/" 
+    target="_blank" 
+    rel="noopener noreferrer" 
+    aria-label="Flex Training Series Instagram"
+  >
+    <img 
+      src="{{ url_for('static', filename='img/instagram-logo.svg') }}" 
+      alt="" 
+      class="instagram-logo" 
+      role="presentation" 
+      loading="lazy" 
+      width="32" 
+      height="32"
+    >
+    <span class="visually-hidden">Instagram</span>
+  </a>
 
   <!-- Main content -->
-  <div class="container text-center d-flex flex-column justify-content-center align-items-center" style="min-height: 70vh;">
-    <div class="w-100" style="max-width: 500px;">
+  <div class="landing-hero container text-center d-flex flex-column align-items-center">
+    <div class="hero-card w-100">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           {% for category, msg in messages %}

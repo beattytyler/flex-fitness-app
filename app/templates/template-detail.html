@@ -22,41 +22,45 @@
     </div>
   </header>
   <div class="container mt-5 mb-5">
-    <div class="d-flex justify-content-between align-items-center">
-      <div class="flex-grow-1 me-3">
-        <h1 class="h3 mb-2">Manage Template</h1>
-        <form class="row g-2 align-items-end" method="POST">
-          <input type="hidden" name="action" value="update_template" />
-          <div class="col-md-5">
-            <label class="form-label">Template Name</label>
-            <input type="text" name="name" class="form-control" value="{{ template.name }}" required />
-          </div>
-          <div class="col-md-5">
-            <label class="form-label">Description</label>
-            <input type="text" name="description" class="form-control" value="{{ template.description or '' }}" placeholder="Optional" />
-          </div>
-          <div class="col-md-2 d-grid">
-            <label class="form-label">&nbsp;</label>
-            <button type="submit" class="btn btn-primary">Save</button>
-          </div>
-        </form>
+    <div class="template-editor-panel">
+      <div class="template-editor-header d-flex flex-column flex-lg-row align-items-lg-center gap-3">
+        <div class="flex-grow-1 w-100">
+          <h1 class="h3 mb-2">Manage Template</h1>
+          <form class="row g-3 align-items-end" method="POST">
+            <input type="hidden" name="action" value="update_template" />
+            <div class="col-12 col-md-6 col-lg-5">
+              <label class="form-label">Template Name</label>
+              <input type="text" name="name" class="form-control" value="{{ template.name }}" required />
+            </div>
+            <div class="col-12 col-md-6 col-lg-5">
+              <label class="form-label">Description</label>
+              <input type="text" name="description" class="form-control" value="{{ template.description or '' }}" placeholder="Optional" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-2 d-flex align-items-end">
+              <div class="w-100 d-flex flex-column flex-md-row gap-2">
+                <button type="submit" class="btn btn-primary flex-fill">Save</button>
+                <a href="{{ url_for('template.list_templates') }}" class="btn btn-outline-secondary flex-fill">Back</a>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="d-flex gap-2 ms-lg-auto">
+          {% if current_user.role == 'trainer' %}
+          <a href="{{ url_for('template.assign_template', template_id=template.id) }}" class="btn btn-outline-primary btn-sm">Assign Template</a>
+          {% endif %}
+        </div>
       </div>
-      <div class="ms-auto">
-        <a href="{{ url_for('template.assign_template', template_id=template.id) }}" class="btn btn-outline-primary btn-sm">Assign Template</a>
-        <a href="{{ url_for('template.list_templates') }}" class="btn btn-secondary btn-sm">Back</a>
+      <div class="card template-search-card mt-4">
+        <div class="card-body">
+          <h5 class="card-title">Search & Add Exercises</h5>
+          <p class="text-muted small">Start typing to see suggestions from the Free Exercise DB. Click a result to add it to this template.</p>
+          <input type="text" id="exerciseSearch" class="form-control" placeholder="e.g. chest, pull, barbell">
+          <div id="searchResults" class="list-group mt-2" style="display:none;"></div>
+        </div>
       </div>
     </div>
 
-    <div class="card mb-4">
-      <div class="card-body">
-        <h5 class="card-title">Search & Add Exercises</h5>
-        <p class="text-muted small">Start typing to see suggestions from the Free Exercise DB. Click a result to add it to this template.</p>
-        <input type="text" id="exerciseSearch" class="form-control" placeholder="e.g. chest, pull, barbell">
-        <div id="searchResults" class="list-group mt-2" style="display:none;"></div>
-      </div>
-    </div>
-
-    <div class="card mb-4">
+    <div class="card mb-4 mt-4">
       <div class="card-body">
         <h5 class="card-title">Add Manually</h5>
         <div class="row g-2 align-items-end">

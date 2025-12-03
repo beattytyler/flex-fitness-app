@@ -335,6 +335,8 @@
 
   {% if summary_nav == 'member' %}
     {% set templates_active = request.endpoint in ['template.list_templates', 'template.view_template', 'template.start_workout', 'template.view_session'] %}
+  {% elif summary_nav == 'trainer' %}
+    {% set trainer_client_view_active = True %}
   {% endif %}
   {% include '_bottom_nav.html' %}
 

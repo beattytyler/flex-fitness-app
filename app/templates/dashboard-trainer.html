@@ -9,7 +9,7 @@
   <style>
   </style>
 </head>
-<body class="app-shell" data-theme="{{ theme_mode or 'light' }}">
+<body class="app-shell trainer-dashboard-page" data-theme="{{ theme_mode or 'light' }}">
   <header class="app-top-bar">
     <div class="container d-flex align-items-center justify-content-between">
       <a class="app-brand" href="{{ url_for('main.home')}}"></a>
@@ -31,22 +31,9 @@
       </p>
       <p class="text-muted">Client overview for {{ today.strftime('%B %d, %Y') }}</p>
     </div>
-    {% set last_client_id = session.get('trainer_last_client_id') if session else None %}
-    <ul class="nav nav-pills justify-content-center mb-4">
-      <li class="nav-item">
-        <a class="nav-link active" aria-current="page" href="{{ url_for('trainer.dashboard_trainer') }}">Client List</a>
-      </li>
-      <li class="nav-item">
-        {% if last_client_id %}
-          <a class="nav-link" href="{{ url_for('trainer.client_detail', member_id=last_client_id) }}">Client View</a>
-        {% else %}
-          <span class="nav-link disabled">Client View</span>
-        {% endif %}
-      </li>
-    </ul>
     {% if clients %}
       <div class="table-responsive">
-        <table class="table table-striped align-middle shadow-sm">
+        <table class="table table-striped align-middle shadow-sm trainer-client-table">
           <thead class="table-primary">
             <tr>
               <th scope="col">Member</th>
@@ -57,18 +44,20 @@
           <tbody>
             {% for client in clients %}
               <tr>
-                <td>
+                <td data-label="Member">
                   <strong>{{ client.record.first_name }} {{ client.record.last_name }}</strong>
                 </td>
-                <td>{{ client.record.email }}</td>
-                <td class="text-end">
-                  <a href="{{ url_for('trainer.client_detail', member_id=client.record.id) }}" class="btn btn-sm btn-outline-primary">View</a>
-                  <a href="{{ url_for('trainer.send_message', client_id=client.record.id) }}" class="btn btn-sm btn-primary ms-1">Message</a>
-                  <form action="{{ url_for('trainer.remove_client', member_id=client.record.id) }}" method="post" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-danger ms-1" onclick="return confirm('Remove {{ client.record.first_name }} {{ client.record.last_name }} from your clients?');">
-                      Remove
-                    </button>
-                  </form>
+                <td data-label="Email">{{ client.record.email }}</td>
+                <td data-label="Actions" class="text-end">
+                  <div class="client-action-buttons d-flex flex-wrap gap-2 justify-content-end">
+                    <a href="{{ url_for('trainer.client_detail', member_id=client.record.id) }}" class="btn btn-sm btn-outline-primary flex-fill flex-md-grow-0">View</a>
+                    <a href="{{ url_for('trainer.send_message', client_id=client.record.id) }}" class="btn btn-sm btn-primary flex-fill flex-md-grow-0">Message</a>
+                    <form action="{{ url_for('trainer.remove_client', member_id=client.record.id) }}" method="post" class="d-inline flex-fill flex-md-grow-0">
+                      <button type="submit" class="btn btn-sm btn-outline-danger w-100" onclick="return confirm('Remove {{ client.record.first_name }} {{ client.record.last_name }} from your clients?');">
+                        Remove
+                      </button>
+                    </form>
+                  </div>
                 </td>
               </tr>
             {% endfor %}

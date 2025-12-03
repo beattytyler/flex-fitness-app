@@ -12,7 +12,7 @@
     }
   </style>
 </head>
-<body class="app-shell" data-theme="{{ theme_mode or 'light' }}">
+<body class="app-shell trainer-client-view-page" data-theme="{{ theme_mode or 'light' }}">
   <header class="app-top-bar">
     <div class="container d-flex align-items-center justify-content-between">
       <a class="app-brand" href="{{ url_for('main.home') }}"></a>
@@ -33,22 +33,7 @@
         <div class="text-muted">Client overview</div>
       </div>
     </div>
-    {% set last_client_id = session.get('trainer_last_client_id') if session else None %}
-    <ul class="nav nav-pills mb-4">
-      <li class="nav-item">
-        <a class="nav-link" href="{{ url_for('trainer.dashboard_trainer') }}">Client List</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link active" aria-current="page" href="{{ url_for('trainer.client_detail', member_id=client.id) }}">Client View</a>
-      </li>
-      {% if last_client_id and last_client_id != client.id %}
-        <li class="nav-item ms-auto">
-          <a class="nav-link" href="{{ url_for('trainer.client_detail', member_id=last_client_id) }}">Last Viewed</a>
-        </li>
-      {% endif %}
-    </ul>
-
-    <ul class="nav nav-pills mb-4">
+    <ul class="nav nav-pills mb-4 client-view-tabs">
       <li class="nav-item">
         <a class="nav-link {% if view != 'calendar' %}active{% endif %}" href="{{ url_for('trainer.client_detail', member_id=client.id) }}">Overview</a>
       </li>
@@ -523,10 +508,7 @@
     {% endif %}
   </div>
 
-  {% set trainer_clients_active = request.endpoint in ['trainer.dashboard_trainer', 'trainer.client_detail', 'trainer.client_summary_view'] %}
-  {% set templates_active = request.endpoint in ['template.list_templates', 'template.view_template', 'template.start_workout', 'template.view_session'] %}
-  {% set trainer_meals_active = request.endpoint in ['trainer.create_meal', 'trainer.edit_meal'] %}
-
+  {% set trainer_client_view_active = True %}
   {% include '_bottom_nav.html' %}
 
   <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>

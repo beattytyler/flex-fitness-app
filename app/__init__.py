@@ -18,7 +18,7 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
-    login_manager.login_view = "auth.login_trainer"
+    login_manager.login_view = "auth.login_member"
     login_manager.login_message_category = "warning"
 
     from app.models import User
@@ -44,11 +44,11 @@ def create_app():
 
     @app.context_processor
     def inject_theme_mode():
-        mode = session.get("theme_mode")
-        if current_user.is_authenticated and getattr(current_user, "theme_mode", None):
-            mode = current_user.theme_mode
-        if not mode:
-            mode = "light"
+        """Expose the active theme, defaulting to light for anonymous users."""
+        mode = "light"
+        if current_user.is_authenticated:
+            stored_pref = getattr(current_user, "theme_mode", None)
+            mode = stored_pref or session.get("theme_mode") or "light"
         session["theme_mode"] = mode
         return {"theme_mode": mode}
 

@@ -136,7 +136,7 @@ def view_template(template_id):
             tpl.description = description or None
             db.session.commit()
             flash('Template updated.', 'success')
-            return redirect(url_for('template.view_template', template_id=template_id))
+            return redirect(url_for('template.list_templates'))
 
     return render_template('template-detail.html', template=tpl)
 
@@ -202,6 +202,23 @@ def add_exercise(template_id):
 
     flash('Exercise added to template.', 'success')
     return redirect(url_for('template.view_template', template_id=template_id))
+
+
+@template_bp.route('/<int:template_id>/delete', methods=['POST'])
+@login_required
+def delete_template(template_id):
+    tpl = ExerciseTemplate.query.get_or_404(template_id)
+    if tpl.owner_id != current_user.id:
+        flash('You do not have access to delete this template.', 'danger')
+        return redirect(url_for('template.list_templates'))
+
+    AssignedTemplate.query.filter_by(template_id=tpl.id).delete(synchronize_session=False)
+    WorkoutSession.query.filter_by(template_id=tpl.id).update({"template_id": None}, synchronize_session=False)
+    db.session.delete(tpl)
+    db.session.commit()
+
+    flash('Template deleted.', 'success')
+    return redirect(url_for('template.list_templates'))
 
 
 @template_bp.route('/<int:template_id>/assign', methods=['GET', 'POST'])

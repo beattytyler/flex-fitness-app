@@ -13,36 +13,7 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 
 # -----------------------------
-# Trainer Login
-# -----------------------------
-@auth_bp.route("/login-trainer", methods=["GET", "POST"])
-def login_trainer():
-    if request.method == "POST":
-        email = request.form.get("email", "").strip()
-        password = request.form.get("password", "").strip()
-
-        user = User.query.filter_by(email=email, role="trainer").first()
-
-        if not user or not check_password_hash(user.password_hash, password):
-            flash("Email or password incorrect.", "danger")
-            return redirect(url_for("auth.login_trainer"))
-
-        if not getattr(user, "email_verified", False):
-            flash("Please verify your email before logging in. Check your inbox (or spam).", "warning")
-            return redirect(url_for("auth.login_trainer"))
-
-        login_user(user)
-        session["user_id"] = user.id
-        session["role"] = user.role
-        session["theme_mode"] = user.theme_mode or session.get("theme_mode") or "light"
-        flash(f"Welcome, Trainer {user.first_name}!", "success")
-        return redirect(url_for("trainer.dashboard_trainer"))
-
-    return render_template("login-trainer.html")
-
-
-# -----------------------------
-# Member Login
+# Unified Login
 # -----------------------------
 @auth_bp.route("/login-member", methods=["GET", "POST"])
 def login_member():
@@ -182,7 +153,7 @@ def register():
                 flash(f"{verify_flash} We couldn't send the verification email. Please contact support.", "warning")
                 print(f"Verification link for support: {verify_link}")
 
-        return redirect(url_for("auth.login_trainer" if role == "trainer" else "auth.login_member"))
+        return redirect(url_for("auth.login_member"))
 
     return render_template("create-account.html")
 
@@ -365,10 +336,6 @@ def verify_email(token):
     db.session.commit()
 
     flash("Your email has been verified. You can now log in.", "success")
-    
-    # Redirect based on user role
-    if user.role == "trainer":
-        return redirect(url_for("auth.login_trainer"))
     return redirect(url_for("auth.login_member"))
 
 
@@ -496,10 +463,8 @@ def reset_password(token):
 
 @auth_bp.route("/logout")
 def logout():
-    theme_pref = getattr(current_user, "theme_mode", None)
     logout_user()
-    preserved_theme = theme_pref or session.get("theme_mode") or "light"
     session.clear()
-    session["theme_mode"] = preserved_theme
+    session["theme_mode"] = "light"
     flash("You have been logged out.", "info")
     return redirect(url_for("main.home"))
