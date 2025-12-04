@@ -8,6 +8,32 @@
   <style>
     .exercise-card { border-left: 4px solid #0d6efd; }
     .exercise-card.custom { border-left-color: #6c757d; }
+    .action-btn {
+      height: 100%;
+      min-height: 38px;
+    }
+    .exercise-row-header .form-control {
+      min-height: 38px;
+    }
+    .set-row.invalid-set {
+      background: #fff5f5;
+      border: 1px solid #f5c2c7;
+      border-radius: 8px;
+    }
+    .set-row.invalid-set .form-control {
+      border-color: #dc3545;
+    }
+    .exercise-info-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
   </style>
 </head>
 <body class="app-shell" data-theme="{{ theme_mode or 'light' }}">
@@ -44,37 +70,89 @@
     <form method="POST" id="workoutForm" class="mb-4">
       <input type="hidden" name="workout_payload" id="workoutPayload">
       <input type="hidden" name="started_at" value="{{ start_time_iso }}">
+      <input type="hidden" name="update_template" id="updateTemplateInput" value="">
       {% if logging_for_client %}
         <input type="hidden" name="for_user_id" value="{{ target_user.id }}">
       {% endif %}
 
       <div id="exercisesContainer"></div>
 
-      <div class="card mb-3">
-        <div class="card-body">
-          <h5 class="card-title mb-3">Add Exercise</h5>
-          <div class="row g-2 align-items-end">
-            <div class="col-md-8">
-              <label class="form-label">Exercise Name</label>
-              <input type="text" id="newExerciseName" class="form-control" placeholder="e.g. Bench Press">
-            </div>
-            <div class="col-md-4">
-              <button type="button" id="addExerciseButton" class="btn btn-primary w-100">Add</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="d-flex justify-content-between align-items-center">
-        <div class="text-muted">Started at: <span id="startTimeLabel">{{ start_time_display }}</span></div>
-        <button type="submit" class="btn btn-success btn-lg">Log Workout</button>
+      <div class="d-flex justify-content-between align-items-center mt-3 gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-primary" id="openAddExerciseBtn">Add Exercise</button>
+        <div class="text-muted flex-grow-1 text-center">Started at: <span id="startTimeLabel">{{ start_time_display }}</span></div>
+        <button type="submit" class="btn btn-success btn-lg" id="logWorkoutBtn">Log Workout</button>
       </div>
     </form>
   </div>
 
   {% include '_bottom_nav.html' %}
 
+  <div class="modal fade" id="addExerciseModal" tabindex="-1" aria-labelledby="addExerciseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addExerciseModalLabel">Add Exercise</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">Search the exercise database or add a custom movement.</p>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Search Catalog</label>
+              <div class="input-group">
+                <input type="text" id="catalogSearchInput" class="form-control" placeholder="e.g. Squat, row, dumbbell">
+                <button type="button" id="catalogSearchBtn" class="btn btn-outline-primary">Search</button>
+              </div>
+              <div id="catalogResults" class="list-group mt-2" style="display:none; max-height: 280px; overflow-y: auto;"></div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Or Add Custom</label>
+              <div class="input-group">
+                <input type="text" id="newExerciseName" class="form-control" placeholder="Custom exercise name">
+                <button type="button" id="addExerciseButton" class="btn btn-primary">Add</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="updateTemplateModal" tabindex="-1" aria-labelledby="updateTemplateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="updateTemplateModalLabel">Update Template?</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">You added exercises that are not in this template. Do you want to add them for next time?</p>
+          <ul id="updateTemplateList" class="list-group mb-3"></ul>
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-outline-secondary" id="updateTemplateSkipBtn">Just log workout</button>
+            <button type="button" class="btn btn-primary" id="updateTemplateYesBtn">Update template</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="exerciseInfoModal" tabindex="-1" aria-labelledby="exerciseInfoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exerciseInfoModalLabel">Exercise Info</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="exerciseInfoContent"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     (function() {
       const startedAtInput = document.querySelector('input[name="started_at"]');
@@ -112,10 +190,64 @@
     const payloadInput = document.getElementById('workoutPayload');
     const addExerciseButton = document.getElementById('addExerciseButton');
     const newExerciseName = document.getElementById('newExerciseName');
+    const logWorkoutBtn = document.getElementById('logWorkoutBtn');
+    const exerciseInfoMap = {{ exercise_info_map | tojson | safe }};
+    const infoModalEl = document.getElementById('exerciseInfoModal');
+    const infoContentEl = document.getElementById('exerciseInfoContent');
+    const infoModal = infoModalEl ? new bootstrap.Modal(infoModalEl) : null;
+    const addExerciseModalEl = document.getElementById('addExerciseModal');
+    const addExerciseModal = addExerciseModalEl ? new bootstrap.Modal(addExerciseModalEl) : null;
+    const openAddExerciseBtn = document.getElementById('openAddExerciseBtn');
+    const catalogSearchInput = document.getElementById('catalogSearchInput');
+    const catalogSearchBtn = document.getElementById('catalogSearchBtn');
+    const catalogResults = document.getElementById('catalogResults');
+    const updateTemplateModalEl = document.getElementById('updateTemplateModal');
+    const updateTemplateModal = updateTemplateModalEl ? new bootstrap.Modal(updateTemplateModalEl) : null;
+    const updateTemplateList = document.getElementById('updateTemplateList');
+    const updateTemplateYesBtn = document.getElementById('updateTemplateYesBtn');
+    const updateTemplateSkipBtn = document.getElementById('updateTemplateSkipBtn');
+    const updateTemplateInput = document.getElementById('updateTemplateInput');
+    const canUpdateTemplate = {{ can_update_template | tojson }};
+    const templateExerciseNames = new Set({{ template_exercise_names | tojson | safe }});
+
+    let pendingPayloadJson = null;
+    let searchDebounce;
 
     let workoutState = Array.isArray(initialData) && initialData.length ? JSON.parse(JSON.stringify(initialData)) : [];
     if (!workoutState.length) {
-      workoutState.push({ templateExerciseId: null, name: '', sets: [{ reps: null, weight: null }] });
+      workoutState.push({ templateExerciseId: null, name: '', muscle: null, equipment: null, sets: [{ reps: null, weight: null }] });
+    }
+
+    function isSetValid(row) {
+      if (!row) return false;
+      const repsInput = row.querySelector('.set-reps');
+      const repsVal = (repsInput?.value ?? "").toString().trim();
+      const repsNum = Number(repsVal);
+      return repsVal !== "" && Number.isFinite(repsNum) && repsNum > 0;
+    }
+
+    function updateSetValidity(row, show = false) {
+      if (!row) return;
+      const invalid = !isSetValid(row);
+      row.classList.toggle('invalid-set', show && invalid);
+    }
+
+    function highlightAllSets(show = false) {
+      document.querySelectorAll('.set-row').forEach((row) => updateSetValidity(row, show));
+    }
+
+    function resetConfirmState() {
+      pendingPayloadJson = null;
+      if (logWorkoutBtn) {
+        logWorkoutBtn.dataset.confirmEmpty = "";
+        logWorkoutBtn.textContent = "Log Workout";
+      }
+      highlightAllSets(false);
+    }
+
+    function hasExerciseInfo(nameKey) {
+      const info = exerciseInfoMap[nameKey];
+      return !!(info && (info.instructions || info.image_main || info.image_secondary));
     }
 
     function renderExercises() {
@@ -124,14 +256,24 @@
         const card = document.createElement('div');
         card.className = `card exercise-card mb-3 ${exercise.templateExerciseId ? '' : 'custom'}`;
         card.dataset.index = exIndex;
+        const nameKey = (exercise.name || '').trim().toLowerCase();
+        const hasInfo = hasExerciseInfo(nameKey);
+        const infoBtnHtml = hasInfo ? `
+          <button type="button" class="btn btn-outline-secondary exercise-info-btn ms-2" data-info-key="${nameKey}" title="Info">i</button>
+        ` : '';
         card.innerHTML = `
           <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-3">
-              <div class="w-100 me-3">
+            <div class="row g-2 align-items-end mb-3 exercise-row-header">
+              <div class="col">
                 <label class="form-label">Exercise</label>
-                <input type="text" class="form-control exercise-name-input" value="${exercise.name || ''}" placeholder="Exercise name">
+                <div class="d-flex align-items-center gap-2">
+                  <input type="text" class="form-control exercise-name-input" value="${exercise.name || ''}" placeholder="Exercise name">
+                  ${infoBtnHtml}
+                </div>
               </div>
-              <button type="button" class="btn btn-outline-danger btn-sm remove-exercise">Remove</button>
+              <div class="col-auto d-flex align-items-end">
+                <button type="button" class="btn btn-outline-danger action-btn remove-exercise" data-confirm-remove="false">Remove</button>
+              </div>
             </div>
             <div class="sets-wrapper"></div>
             <button type="button" class="btn btn-outline-primary btn-sm add-set mt-2">Add Set</button>
@@ -155,7 +297,7 @@
               <input type="number" step="0.1" class="form-control set-weight" value="${set.weight ?? ''}">
             </div>
             <div class="col-md-4 d-flex align-items-end">
-              <button type="button" class="btn btn-outline-danger btn-sm remove-set w-100">Remove Set</button>
+              <button type="button" class="btn btn-outline-danger action-btn w-100 remove-set">Remove Set</button>
             </div>
           `;
           setsWrapper.appendChild(row);
@@ -180,6 +322,31 @@
 
       if (event.target.classList.contains('exercise-name-input')) {
         exercise.name = event.target.value;
+        const wrapper = event.target.closest('.exercise-row-header');
+        if (wrapper) {
+          const nameKey = (exercise.name || '').trim().toLowerCase();
+          const infoBtn = wrapper.querySelector('.exercise-info-btn');
+          const hasInfo = hasExerciseInfo(nameKey);
+          if (infoBtn) {
+            if (hasInfo) {
+              infoBtn.dataset.infoKey = nameKey;
+              infoBtn.classList.remove('d-none');
+            } else {
+              infoBtn.dataset.infoKey = "";
+              infoBtn.classList.add('d-none');
+            }
+          } else if (hasInfo) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-outline-secondary exercise-info-btn ms-2';
+            btn.dataset.infoKey = nameKey;
+            btn.textContent = 'i';
+            const container = event.target.parentElement;
+            if (container) {
+              container.appendChild(btn);
+            }
+          }
+        }
         return;
       }
 
@@ -192,6 +359,8 @@
 
       if (event.target.classList.contains('set-reps')) {
         set.reps = event.target.value;
+        const show = logWorkoutBtn && logWorkoutBtn.dataset.confirmEmpty === "true";
+        updateSetValidity(row, show);
       }
       if (event.target.classList.contains('set-weight')) {
         set.weight = event.target.value;
@@ -206,11 +375,28 @@
       if (!exercise) return;
 
       if (event.target.classList.contains('remove-exercise')) {
-        workoutState.splice(exIndex, 1);
-        if (!workoutState.length) {
-          workoutState.push({ templateExerciseId: null, name: '', sets: [{ reps: null, weight: null }] });
+        const btn = event.target;
+        if (btn.dataset.confirmRemove === "true") {
+          workoutState.splice(exIndex, 1);
+          if (!workoutState.length) {
+            workoutState.push({ templateExerciseId: null, name: '', muscle: null, equipment: null, sets: [{ reps: null, weight: null }] });
+          }
+          if (updateTemplateInput) updateTemplateInput.value = '';
+          renderExercises();
+        } else {
+          btn.dataset.confirmRemove = "true";
+          btn.textContent = "Confirm";
+          btn.classList.remove("btn-outline-danger");
+          btn.classList.add("btn-danger");
+          setTimeout(() => {
+            if (btn.dataset.confirmRemove === "true") {
+              btn.dataset.confirmRemove = "false";
+              btn.textContent = "Remove";
+              btn.classList.add("btn-outline-danger");
+              btn.classList.remove("btn-danger");
+            }
+          }, 3000);
         }
-        renderExercises();
         return;
       }
 
@@ -239,27 +425,255 @@
         newExerciseName.focus();
         return;
       }
-      workoutState.push({ templateExerciseId: null, name, sets: [{ reps: null, weight: null }] });
+      workoutState.push({ templateExerciseId: null, name, muscle: null, equipment: null, sets: [{ reps: null, weight: null }] });
+      if (updateTemplateInput) updateTemplateInput.value = '';
       newExerciseName.value = '';
       renderExercises();
+      if (addExerciseModal) addExerciseModal.hide();
     });
 
-    workoutForm.addEventListener('submit', (event) => {
-      const payload = workoutState
-        .map(ex => ({
-          templateExerciseId: ex.templateExerciseId,
-          name: ex.name,
-          sets: (ex.sets || []).map(set => ({ reps: set.reps, weight: set.weight }))
-        }))
-        .filter(ex => ex.name && ex.sets && ex.sets.length);
+    function clearCatalogResults() {
+      if (!catalogResults) return;
+      catalogResults.innerHTML = '';
+      catalogResults.style.display = 'none';
+    }
 
-      if (!payload.length) {
-        event.preventDefault();
-        alert('Please add at least one exercise with a set.');
+    function renderCatalogResults(items) {
+      if (!catalogResults) return;
+      catalogResults.innerHTML = '';
+      if (!items.length) {
+        catalogResults.innerHTML = `<div class="list-group-item text-muted">No matches found</div>`;
+        catalogResults.style.display = 'block';
         return;
       }
 
-      payloadInput.value = JSON.stringify(payload);
+      items.forEach((item) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+        const meta = [item.muscle, item.equipment].filter(Boolean).join(' | ');
+        btn.innerHTML = `<span>${item.name}</span>${meta ? `<small class="text-muted">${meta}</small>` : ''}`;
+        btn.addEventListener('click', () => {
+          const nextExercise = {
+            templateExerciseId: null,
+            name: item.name,
+            muscle: item.muscle || null,
+            equipment: item.equipment || null,
+            sets: [{ reps: null, weight: null }],
+          };
+          workoutState.push(nextExercise);
+          if (updateTemplateInput) updateTemplateInput.value = '';
+          const infoKey = (item.name || '').trim().toLowerCase();
+          const hasDetails = item.instructions || item.image_main || item.image_secondary;
+          if (infoKey && hasDetails) {
+            exerciseInfoMap[infoKey] = exerciseInfoMap[infoKey] || {
+              name: item.name,
+              instructions: item.instructions,
+              image_main: item.image_main,
+              image_secondary: item.image_secondary,
+            };
+          }
+          renderExercises();
+          clearCatalogResults();
+          if (catalogSearchInput) catalogSearchInput.value = '';
+          if (addExerciseModal) addExerciseModal.hide();
+        });
+        catalogResults.appendChild(btn);
+      });
+      catalogResults.style.display = 'block';
+    }
+
+    async function searchCatalog(termOverride) {
+      if (!catalogResults) return;
+      const term = typeof termOverride === 'string'
+        ? termOverride.trim()
+        : (catalogSearchInput?.value || '').trim();
+      if (!term || term.length < 2) {
+        clearCatalogResults();
+        return;
+      }
+      catalogResults.style.display = 'block';
+      catalogResults.innerHTML = `<div class="list-group-item text-muted">Searching...</div>`;
+      if (catalogSearchBtn) catalogSearchBtn.disabled = true;
+      try {
+        const resp = await fetch(`/templates/api/search?q=${encodeURIComponent(term)}`);
+        if (!resp.ok) throw new Error('Search failed');
+        const data = await resp.json();
+        const results = Array.isArray(data.results) ? data.results : [];
+        renderCatalogResults(results);
+      } catch (err) {
+        catalogResults.innerHTML = `<div class="list-group-item text-danger">Search failed</div>`;
+        catalogResults.style.display = 'block';
+      } finally {
+        if (catalogSearchBtn) catalogSearchBtn.disabled = false;
+      }
+    }
+
+    catalogSearchBtn?.addEventListener('click', searchCatalog);
+    catalogSearchInput?.addEventListener('input', () => {
+      clearTimeout(searchDebounce);
+      const term = (catalogSearchInput.value || '').trim();
+      if (term.length < 2) {
+        clearCatalogResults();
+        return;
+      }
+      searchDebounce = setTimeout(() => searchCatalog(term), 250);
+    });
+    catalogSearchInput?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        searchCatalog();
+      }
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!catalogResults) return;
+      const within = catalogResults.contains(event.target) || event.target === catalogSearchInput || event.target === catalogSearchBtn;
+      if (!within) {
+        clearCatalogResults();
+      }
+    });
+
+    openAddExerciseBtn?.addEventListener('click', () => {
+      if (addExerciseModal) {
+        addExerciseModal.show();
+        setTimeout(() => catalogSearchInput?.focus(), 150);
+      }
+    });
+
+    addExerciseModalEl?.addEventListener('hidden.bs.modal', () => {
+      clearCatalogResults();
+      if (catalogSearchInput) catalogSearchInput.value = '';
+      if (newExerciseName) newExerciseName.value = '';
+    });
+
+    updateTemplateModalEl?.addEventListener('hidden.bs.modal', () => {
+      pendingPayloadJson = null;
+    });
+
+    function proceedTemplateUpdate(choice) {
+      if (updateTemplateInput) {
+        updateTemplateInput.value = choice;
+      }
+      if (updateTemplateModal) {
+        updateTemplateModal.hide();
+      }
+      const payloadToSubmit = pendingPayloadJson;
+      resetConfirmState();
+      if (payloadToSubmit) {
+        submitWithPayload(payloadToSubmit);
+      }
+    }
+
+    updateTemplateYesBtn?.addEventListener('click', () => proceedTemplateUpdate('yes'));
+    updateTemplateSkipBtn?.addEventListener('click', () => proceedTemplateUpdate('no'));
+
+    document.addEventListener("click", (event) => {
+      const btn = event.target.closest(".exercise-info-btn");
+      if (!btn || !infoModal || !infoContentEl) return;
+      const key = (btn.dataset.infoKey || "").toLowerCase();
+      if (!key) return;
+      const info = exerciseInfoMap[key];
+      if (!info) return;
+      const parts = [];
+      if (info.image_main) {
+        parts.push(`<div class="text-center mb-3"><img src="${info.image_main}" alt="${info.name || 'Exercise image'}" class="img-fluid rounded"></div>`);
+      }
+      if (info.image_secondary) {
+        parts.push(`<div class="text-center mb-3"><img src="${info.image_secondary}" alt="${info.name || 'Exercise image'}" class="img-fluid rounded"></div>`);
+      }
+      if (info.instructions) {
+        const formatted = info.instructions.replace(/\\n/g, "<br>");
+        parts.push(`<div class="small">${formatted}</div>`);
+      }
+      infoContentEl.innerHTML = parts.join("") || "<p class='text-muted mb-0'>No details available.</p>";
+      const titleEl = document.getElementById("exerciseInfoModalLabel");
+      if (titleEl) titleEl.textContent = info.name || "Exercise Info";
+      infoModal.show();
+    });
+
+    function submitWithPayload(jsonPayload) {
+      if (!workoutForm || !payloadInput) return;
+      payloadInput.value = jsonPayload;
+      workoutForm.dataset.submitting = "true";
+      workoutForm.submit();
+    }
+
+    workoutForm.addEventListener('submit', (event) => {
+      if (workoutForm.dataset.submitting === "true") {
+        return;
+      }
+      event.preventDefault();
+
+      let removedEmptySets = 0;
+      const payload = [];
+
+      workoutState.forEach((ex) => {
+        const name = (ex.name || "").trim();
+        if (!name) return;
+
+        const validSets = (ex.sets || []).filter((set) => {
+          const repsVal = (set.reps ?? "").toString().trim();
+          const repsNum = Number(repsVal);
+          const hasReps = repsVal !== "" && Number.isFinite(repsNum) && repsNum > 0;
+          if (!hasReps) {
+            removedEmptySets += 1;
+            return false;
+          }
+          return true;
+        }).map((set) => ({ reps: set.reps, weight: set.weight }));
+
+        if (validSets.length) {
+          payload.push({
+            templateExerciseId: ex.templateExerciseId,
+            name,
+            muscle: ex.muscle ?? null,
+            equipment: ex.equipment ?? null,
+            sets: validSets,
+          });
+        }
+      });
+
+      const totalSets = payload.reduce((sum, ex) => sum + ex.sets.length, 0);
+      const newExercises = payload.filter((ex) => {
+        const name = (ex.name || '').trim().toLowerCase();
+        return !ex.templateExerciseId && name && !templateExerciseNames.has(name);
+      });
+
+      const nextPayload = JSON.stringify(payload);
+      const needsConfirm = totalSets === 0 || removedEmptySets > 0;
+      if (needsConfirm) {
+        highlightAllSets(true);
+        if (logWorkoutBtn && logWorkoutBtn.dataset.confirmEmpty === "true") {
+          resetConfirmState();
+        } else {
+          if (logWorkoutBtn) {
+            logWorkoutBtn.dataset.confirmEmpty = "true";
+            logWorkoutBtn.textContent = "Confirm: log without details";
+          }
+          return;
+        }
+      }
+
+      const needsTemplateDecision = canUpdateTemplate && newExercises.length > 0 && updateTemplateInput && !updateTemplateInput.value;
+      if (needsTemplateDecision) {
+        pendingPayloadJson = nextPayload;
+        if (updateTemplateList) {
+          updateTemplateList.innerHTML = '';
+          newExercises.forEach((ex) => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            const meta = [ex.muscle, ex.equipment].filter(Boolean).join(' | ');
+            li.innerHTML = `<span>${ex.name}</span>${meta ? `<small class="text-muted">${meta}</small>` : ''}`;
+            updateTemplateList.appendChild(li);
+          });
+        }
+        updateTemplateModal?.show();
+        return;
+      }
+
+      resetConfirmState();
+      submitWithPayload(nextPayload);
     });
 
     renderExercises();

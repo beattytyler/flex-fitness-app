@@ -66,6 +66,10 @@
         display: block;
         font-size: 0.65rem;
       }
+      .trainer-remove-btn {
+        min-height: 38px;
+        padding: 0.45rem 0.9rem;
+      }
     </style>
   </head>
   <body class="app-shell" data-theme="{{ theme_mode or 'light' }}">
@@ -152,7 +156,6 @@
                       <option value="" {% if not user.gender %}selected{% endif %}>Select gender</option>
                       <option value="female" {% if user.gender == 'female' %}selected{% endif %}>Female</option>
                       <option value="male" {% if user.gender == 'male' %}selected{% endif %}>Male</option>
-                      <option value="other" {% if user.gender == 'other' %}selected{% endif %}>Other</option>
                     </select>
                   </div>
                   <div class="col-md-4">
@@ -194,7 +197,14 @@
                   </div>
                   <div class="col-md-4">
                     <label class="form-label">Current Trainer</label>
-                    <input type="text" class="form-control" value="{% if user.trainer %}{{ user.trainer.first_name }} {{ user.trainer.last_name }}{% else %}Not connected{% endif %}" readonly>
+                    <div class="d-flex align-items-stretch gap-2">
+                      <input type="text" class="form-control flex-grow-1" style="max-width: 240px;" value="{% if user.trainer %}{{ user.trainer.first_name }} {{ user.trainer.last_name }}{% else %}Not connected{% endif %}" readonly>
+                      {% if user.trainer %}
+                        <form method="POST" action="{{ url_for('member.remove_trainer') }}">
+                          <button type="submit" class="btn btn-outline-danger trainer-remove-btn flex-shrink-0" data-confirm-remove="false">Remove</button>
+                        </form>
+                      {% endif %}
+                    </div>
                   </div>
                 </div>
                 <button type="submit" class="btn btn-primary mt-3">Save Profile</button>
@@ -277,7 +287,7 @@
           </div>
 
           {% elif view == 'calendar' and cal_month and cal_year and calendar_weeks %}
-          <div class="card mt-4">
+          <div class="card mt-4" id="calendar-view">
             <div class="card-body">
               <div class="d-flex align-items-center justify-content-between mb-2">
                 {% set prev_month = cal_month - 1 %}
@@ -310,8 +320,9 @@
                               <div class="d-flex justify-content-between align-items-start mb-1">
                                 <small class="text-muted">{{ day.day }}</small>
                                 <div>
-                                  {% if day.data and day.data.weight is defined and day.data.weight is not none %}<span class="badge bg-info text-dark me-1">W</span>{% endif %}
-                                  {% if day.data and day.data.food %}<span class="badge bg-success me-1">F</span>{% endif %}
+                                  {% if day.data and day.data.weight is defined and day.data.weight is not none %}<span class="badge bg-primary text-light me-1">W</span>{% endif %}
+                                  {% if day.data and day.data.food %}<span class="badge bg-success text-light me-1">F</span>{% endif %}
+                                  {% if day.data and day.data.workouts %}<span class="badge bg-danger text-light">E</span>{% endif %}
                                 </div>
                               </div>
 
@@ -424,7 +435,13 @@
                               <strong>{{ workout.template_name }}</strong>
                               <span class="text-muted"> -- {{ workout.duration or '—' }}</span>
                             </div>
-                            <a class="btn btn-link btn-sm p-0" href="{{ url_for('template.view_session', session_id=workout.session.id, return_to='calendar', date=selected_iso) }}">View</a>
+                            <div class="d-flex gap-2 align-items-center">
+                              <a class="btn btn-link btn-sm p-0 remember-scroll" href="{{ url_for('template.view_session', session_id=workout.session.id, return_to='calendar', date=selected_iso, anchor='calendar-view') }}#calendar-view">View</a>
+                              {% if workout.session.template_id %}
+                              <a class="btn btn-outline-primary btn-sm remember-scroll" href="{{ url_for('template.start_workout', template_id=workout.session.template_id, session_id=workout.session.id, date=selected_iso, anchor='calendar-view', return_to='calendar') }}#calendar-view">Edit</a>
+                              {% endif %}
+                              <button type="button" class="btn btn-outline-danger btn-sm workout-remove-btn" data-session-id="{{ workout.session.id }}" data-next="{{ request.full_path }}" data-confirm-remove="false">Remove</button>
+                            </div>
                           </li>
                         {% endfor %}
                       </ul>
@@ -585,50 +602,65 @@
                       {% endif %}
                     </div>
                     <div class="tab-pane fade" id="memberMealsPane" role="tabpanel" aria-labelledby="member-meals-tab">
-                      <p class="text-muted small mb-3">Your saved meals appear below. Use the builder above to create more.</p>
+                      <p class="text-muted small mb-3">Your saved meals appear below. Use the builder below to create more.</p>
                       {% set meals_ns = namespace(has_meals=false) %}
                       <div id="memberMealsList">
-                        {% for slot, label in meal_slot_labels.items() %}
-                          {% set member_slot_meals = member_meal_plan.get(slot) %}
-                          {% if member_slot_meals %}
-                            {% set meals_ns.has_meals = true %}
-                            {% for meal in member_slot_meals %}
-                              <div class="border rounded-3 p-3 mb-3 member-meal-card" data-member-meal-id="{{ meal.id }}" data-member-meal-slot="{{ slot }}">
-                                <div class="d-flex justify-content-between align-items-start">
-                                  <div>
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                      <span class="badge bg-light text-dark">{{ label }}</span>
-                                      <h6 class="mb-0">{{ meal.name }}</h6>
+                        <ul class="nav nav-pills small" id="memberMealTabs" role="tablist">
+                          {% for slot, label in meal_slot_labels.items() %}
+                            <li class="nav-item" role="presentation">
+                              <button class="nav-link {% if loop.first %}active{% endif %}" id="member-tab-{{ slot }}" data-bs-toggle="pill" data-bs-target="#member-panel-{{ slot }}" type="button" role="tab">{{ label }}</button>
+                            </li>
+                          {% endfor %}
+                        </ul>
+                        <div class="tab-content mt-3" id="memberMealContent">
+                          {% for slot, label in meal_slot_labels.items() %}
+                            {% set member_slot_meals = member_meal_plan.get(slot) %}
+                            {% if member_slot_meals %}
+                              {% set meals_ns.has_meals = true %}
+                            {% endif %}
+                            <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="member-panel-{{ slot }}" role="tabpanel" aria-labelledby="member-tab-{{ slot }}">
+                              <div class="member-meals-slot" data-slot="{{ slot }}">
+                                {% if member_slot_meals %}
+                                  {% for meal in member_slot_meals %}
+                                    <div class="border rounded-3 p-3 mb-3 member-meal-card" data-member-meal-id="{{ meal.id }}" data-member-meal-slot="{{ slot }}">
+                                      <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                          <div class="d-flex align-items-center gap-2 mb-1">
+                                            <span class="badge bg-light text-dark">{{ label }}</span>
+                                            <h6 class="mb-0">{{ meal.name }}</h6>
+                                          </div>
+                                          {% if meal.description %}
+                                            <p class="mb-2 text-muted small">{{ meal.description }}</p>
+                                          {% endif %}
+                                          <p class="mb-2 small text-secondary">
+                                            {{ meal.macros.calories }} cal · {{ meal.macros.protein }}g protein · {{ meal.macros.carbs }}g carbs · {{ meal.macros.fats }}g fat
+                                          </p>
+                                        </div>
+                                        <div class="btn-group btn-group-sm">
+                                          <button type="button" class="btn btn-outline-primary add-member-meal-btn" data-meal-id="{{ meal.id }}">Add Meal</button>
+                                          <button type="button" class="btn btn-outline-danger delete-member-meal-btn" data-meal-id="{{ meal.id }}">Delete</button>
+                                        </div>
+                                      </div>
+                                      <ul class="mb-0 small mt-2">
+                                        {% for ingredient in meal.ingredients %}
+                                          <li>
+                                            <strong>{{ ingredient.name }}</strong>
+                                            — {{ ingredient.grams }} g{% if ingredient.ounces %} / {{ ingredient.ounces }} oz{% endif %}
+                                            {% if ingredient.volume_ml %}
+                                              ({{ ingredient.volume_ml }} ml{% if ingredient.fluid_oz %} / {{ ingredient.fluid_oz }} fl oz{% endif %})
+                                            {% endif %}
+                                          </li>
+                                        {% endfor %}
+                                      </ul>
                                     </div>
-                                    {% if meal.description %}
-                                      <p class="mb-2 text-muted small">{{ meal.description }}</p>
-                                    {% endif %}
-                                    <p class="mb-2 small text-secondary">
-                                      {{ meal.macros.calories }} cal · {{ meal.macros.protein }}g protein · {{ meal.macros.carbs }}g carbs · {{ meal.macros.fats }}g fat
-                                    </p>
-                                  </div>
-                                  <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn btn-outline-primary add-member-meal-btn" data-meal-id="{{ meal.id }}">Add Meal</button>
-                                    <button type="button" class="btn btn-outline-danger delete-member-meal-btn" data-meal-id="{{ meal.id }}">Delete</button>
-                                  </div>
-                                </div>
-                                <ul class="mb-0 small mt-2">
-                                  {% for ingredient in meal.ingredients %}
-                                    <li>
-                                      <strong>{{ ingredient.name }}</strong>
-                                      — {{ ingredient.grams }} g{% if ingredient.ounces %} / {{ ingredient.ounces }} oz{% endif %}
-                                      {% if ingredient.volume_ml %}
-                                        ({{ ingredient.volume_ml }} ml{% if ingredient.fluid_oz %} / {{ ingredient.fluid_oz }} fl oz{% endif %})
-                                      {% endif %}
-                                    </li>
                                   {% endfor %}
-                                </ul>
+                                {% endif %}
+                                <p class="text-muted small mb-0 member-slot-empty {% if member_slot_meals %}d-none{% endif %}">No meals in {{ label.lower() }} yet. Build one below.</p>
                               </div>
-                            {% endfor %}
-                          {% endif %}
-                        {% endfor %}
+                            </div>
+                          {% endfor %}
+                        </div>
                       </div>
-                      <p class="text-muted small mb-0 {% if meals_ns.has_meals %}d-none{% endif %}" id="memberMealsEmpty">No custom meals yet. Build one above.</p>
                     </div>
                   </div>
                 </div>
@@ -1121,13 +1153,28 @@
         }
       }
 
-function updateMemberMealsEmptyState() {
-        if (!memberMealsEmpty) return;
-        const hasCard = memberMealsList && memberMealsList.querySelector("[data-member-meal-id]");
-        if (hasCard) {
-          memberMealsEmpty.classList.add("d-none");
-        } else {
-          memberMealsEmpty.classList.remove("d-none");
+      function getMemberSlotContainer(slot) {
+        if (!memberMealsList) return null;
+        return memberMealsList.querySelector(`.member-meals-slot[data-slot="${slot}"]`);
+      }
+
+      function updateMemberMealsEmptyState() {
+        const slotContainers = memberMealsList ? memberMealsList.querySelectorAll(".member-meals-slot") : [];
+        let hasAnyCard = false;
+
+        slotContainers.forEach((container) => {
+          const hasSlotCard = container.querySelector(".member-meal-card");
+          if (hasSlotCard) {
+            hasAnyCard = true;
+          }
+          const slotEmpty = container.querySelector(".member-slot-empty");
+          if (slotEmpty) {
+            slotEmpty.classList.toggle("d-none", !!hasSlotCard);
+          }
+        });
+
+        if (memberMealsEmpty) {
+          memberMealsEmpty.classList.toggle("d-none", hasAnyCard);
         }
       }
 
@@ -1209,12 +1256,13 @@ function updateMemberMealsEmptyState() {
 
       function renderMemberMealCard(meal) {
         if (!memberMealsList) return;
+        const slotKey = meal.slot || "meal1";
         const slotLabel =
-          (memberMealSlotLabels && memberMealSlotLabels[meal.slot]) || "Meal";
+          (memberMealSlotLabels && memberMealSlotLabels[slotKey]) || "Meal";
         const card = document.createElement("div");
         card.className = "border rounded-3 p-3 mb-3 member-meal-card";
         card.dataset.memberMealId = meal.id;
-        card.dataset.memberMealSlot = meal.slot || "";
+        card.dataset.memberMealSlot = slotKey;
         const macros = meal.macros || {};
         const calories = Number(macros.calories || 0).toFixed(1);
         const protein = Number(macros.protein || 0).toFixed(1);
@@ -1255,7 +1303,14 @@ function updateMemberMealsEmptyState() {
           </ul>
         `;
 
-        memberMealsList.prepend(card);
+        const targetContainer = getMemberSlotContainer(slotKey) || memberMealsList;
+        if (targetContainer) {
+          const slotEmpty = targetContainer.querySelector(".member-slot-empty");
+          if (slotEmpty) {
+            slotEmpty.classList.add("d-none");
+          }
+          targetContainer.prepend(card);
+        }
         updateMemberMealsEmptyState();
       }
 
@@ -1729,6 +1784,111 @@ function updateMemberMealsEmptyState() {
       }
     }
   });
+
+  // Confirm remove trainer (two-click)
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest(".trainer-remove-btn");
+    if (!btn) return;
+    if (btn.dataset.confirmRemove === "true") {
+      return;
+    }
+    event.preventDefault();
+    btn.dataset.confirmRemove = "true";
+    btn.textContent = "Confirm Remove";
+    btn.classList.remove("btn-outline-danger");
+    btn.classList.add("btn-danger");
+    setTimeout(() => {
+      if (btn.dataset.confirmRemove === "true") {
+        btn.dataset.confirmRemove = "false";
+        btn.textContent = "Remove Trainer";
+        btn.classList.add("btn-outline-danger");
+        btn.classList.remove("btn-danger");
+      }
+    }, 3000);
+  });
+
+  // Confirm remove workout (two-click)
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest(".workout-remove-btn");
+    if (!btn) return;
+    const sessionId = btn.dataset.sessionId;
+    if (!sessionId) return;
+
+    if (btn.dataset.confirmRemove !== "true") {
+      event.preventDefault();
+      btn.dataset.confirmRemove = "true";
+      btn.textContent = "Confirm";
+      btn.classList.remove("btn-outline-danger");
+      btn.classList.add("btn-danger");
+      setTimeout(() => {
+        if (btn.dataset.confirmRemove === "true") {
+          btn.dataset.confirmRemove = "false";
+          btn.textContent = "Remove";
+          btn.classList.add("btn-outline-danger");
+          btn.classList.remove("btn-danger");
+        }
+      }, 3000);
+      return;
+    }
+
+    event.preventDefault();
+    fetch(`/member/delete-workout/${sessionId}`, {
+      method: "POST",
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+      body: new URLSearchParams({ next: btn.dataset.next || "" }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.status === "success") {
+          const li = btn.closest("li");
+          if (li) li.remove();
+          btn.dataset.confirmRemove = "false";
+          btn.textContent = "Remove";
+          btn.classList.add("btn-outline-danger");
+          btn.classList.remove("btn-danger");
+        } else {
+          btn.dataset.confirmRemove = "false";
+          btn.textContent = "Remove";
+          btn.classList.add("btn-outline-danger");
+          btn.classList.remove("btn-danger");
+          alert(data.message || "Unable to remove workout.");
+        }
+      })
+      .catch(() => {
+        btn.dataset.confirmRemove = "false";
+        btn.textContent = "Remove";
+        btn.classList.add("btn-outline-danger");
+        btn.classList.remove("btn-danger");
+        alert("Unable to remove workout.");
+      });
+  });
+
+  {% if view == 'calendar' %}
+  const SCROLL_KEY = "calendarScrollY";
+  const SCROLL_FLAG = "calendarScrollRestore";
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const shouldRestore = sessionStorage.getItem(SCROLL_FLAG) === "1";
+    const saved = sessionStorage.getItem(SCROLL_KEY);
+    if (shouldRestore && saved) {
+      const y = parseInt(saved, 10);
+      if (!Number.isNaN(y)) {
+        setTimeout(() => {
+          window.scrollTo({ top: y, behavior: "auto" });
+        }, 30);
+      }
+    }
+    sessionStorage.removeItem(SCROLL_FLAG);
+    sessionStorage.removeItem(SCROLL_KEY);
+  });
+
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest(".remember-scroll");
+    if (!link) return;
+    sessionStorage.setItem(SCROLL_KEY, String(window.scrollY || window.pageYOffset || 0));
+    sessionStorage.setItem(SCROLL_FLAG, "1");
+  });
+  {% endif %}
 
   updateMemberMealsEmptyState();
 

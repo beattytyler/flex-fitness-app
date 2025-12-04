@@ -53,7 +53,7 @@
                     <a href="{{ url_for('trainer.client_detail', member_id=client.record.id) }}" class="btn btn-sm btn-outline-primary flex-fill flex-md-grow-0">View</a>
                     <a href="{{ url_for('trainer.send_message', client_id=client.record.id) }}" class="btn btn-sm btn-primary flex-fill flex-md-grow-0">Message</a>
                     <form action="{{ url_for('trainer.remove_client', member_id=client.record.id) }}" method="post" class="d-inline flex-fill flex-md-grow-0">
-                      <button type="submit" class="btn btn-sm btn-outline-danger w-100" onclick="return confirm('Remove {{ client.record.first_name }} {{ client.record.last_name }} from your clients?');">
+                      <button type="submit" class="btn btn-sm btn-outline-danger w-100 client-remove-btn" data-confirm-label="Confirm">
                         Remove
                       </button>
                     </form>
@@ -76,5 +76,29 @@
 
   <script src="{{ url_for('static', filename='js/theme-toggle.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.querySelectorAll(".client-remove-btn").forEach((btn) => {
+      const originalLabel = btn.textContent.trim();
+      const confirmLabel = btn.dataset.confirmLabel || "Are you sure?";
+      btn.addEventListener("click", (event) => {
+        if (btn.dataset.confirmed === "true") {
+          return;
+        }
+        event.preventDefault();
+        btn.dataset.confirmed = "true";
+        btn.textContent = confirmLabel;
+        btn.classList.remove("btn-outline-danger");
+        btn.classList.add("btn-danger");
+        setTimeout(() => {
+          if (btn.dataset.confirmed === "true") {
+            btn.dataset.confirmed = "";
+            btn.textContent = originalLabel;
+            btn.classList.add("btn-outline-danger");
+            btn.classList.remove("btn-danger");
+          }
+        }, 4000);
+      });
+    });
+  </script>
 </body>
 </html>

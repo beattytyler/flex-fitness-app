@@ -35,7 +35,6 @@ def login_member():
         session["user_id"] = user.id
         session["role"] = user.role
         session["theme_mode"] = user.theme_mode or session.get("theme_mode") or "light"
-        flash(f"Welcome back, {user.first_name}!", "success")
 
         if user.role == "trainer":
             return redirect(url_for("trainer.dashboard_trainer"))

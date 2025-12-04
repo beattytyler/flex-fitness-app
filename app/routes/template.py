@@ -12,7 +12,7 @@ from app.models import (
 )
 from datetime import datetime
 import json
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 
 template_bp = Blueprint('template', __name__, url_prefix='/templates')
@@ -46,6 +46,9 @@ def _search_exercises(term):
             "name": row.name,
             "muscle": muscle,
             "equipment": row.equipment,
+            "instructions": row.instructions,
+            "image_main": row.image_main,
+            "image_secondary": row.image_secondary,
         })
     return results
 
@@ -274,6 +277,9 @@ def start_workout(template_id):
     for_user_id_value = request.form.get('for_user_id') if request.method == 'POST' else request.args.get('for_user_id')
     target_user = current_user
     redirect_kwargs = {'template_id': template_id}
+    anchor_arg = request.args.get('anchor')
+    date_arg = request.args.get('date')
+    return_to_arg = request.args.get('return_to')
 
     if for_user_id_value not in (None, ''):
         try:
@@ -296,6 +302,17 @@ def start_workout(template_id):
     else:
         for_user_id = None
 
+    edit_session_id = request.args.get('session_id', type=int)
+
+    if edit_session_id:
+        redirect_kwargs['session_id'] = edit_session_id
+    if return_to_arg:
+        redirect_kwargs['return_to'] = return_to_arg
+    if date_arg:
+        redirect_kwargs['date'] = date_arg
+    if anchor_arg:
+        redirect_kwargs['anchor'] = anchor_arg
+
     if request.method == 'POST':
         payload_raw = request.form.get('workout_payload')
         try:
@@ -314,12 +331,26 @@ def start_workout(template_id):
         except ValueError:
             started_at = datetime.utcnow()
 
-        workout_session = WorkoutSession(user_id=target_user.id, template_id=tpl.id, started_at=started_at)
-        db.session.add(workout_session)
-        db.session.flush()
+        workout_session = None
+        if edit_session_id:
+            workout_session = WorkoutSession.query.get(edit_session_id)
+            if not workout_session or workout_session.user_id != target_user.id or workout_session.template_id != tpl.id:
+                flash('Workout not found for editing.', 'danger')
+                return redirect(url_for('template.start_workout', **redirect_kwargs))
+            # clear existing sets
+            WorkoutSet.query.filter_by(session_id=workout_session.id).delete()
+            # keep original started_at if present
+            workout_session.completed_at = None
+        else:
+            workout_session = WorkoutSession(user_id=target_user.id, template_id=tpl.id, started_at=started_at)
+            db.session.add(workout_session)
+            db.session.flush()
+
+        update_template_choice = (request.form.get('update_template') or '').lower() == 'yes'
 
         total_sets = 0
         summary_parts = []
+        new_template_candidates = []
 
         for exercise in payload:
             name = (exercise.get('name') or '').strip()
@@ -332,6 +363,8 @@ def start_workout(template_id):
             except (TypeError, ValueError):
                 template_ex_id = None
 
+            muscle_val = exercise.get('muscle')
+            equipment_val = exercise.get('equipment')
             sets_payload = exercise.get('sets') or []
             clean_sets = []
             for idx, set_obj in enumerate(sets_payload, start=1):
@@ -377,6 +410,15 @@ def start_workout(template_id):
                 weight_part = f" @ {round(first['weight'], 1)} lbs"
             summary_parts.append(f"{name}: {len(clean_sets)} set(s) × {rep_part}{weight_part}")
 
+            if not template_ex_id:
+                new_template_candidates.append({
+                    "name": name,
+                    "muscle": muscle_val,
+                    "equipment": equipment_val,
+                    "default_sets": len(clean_sets) if clean_sets else None,
+                    "default_reps": first['reps'] if first and first.get('reps') is not None else None,
+                })
+
         if total_sets == 0:
             db.session.rollback()
             flash('No sets were logged. Please add at least one set.', 'warning')
@@ -388,19 +430,49 @@ def start_workout(template_id):
             summary_text = summary_text[:247] + '...'
         workout_session.summary = summary_text
 
+        if update_template_choice and new_template_candidates and tpl.owner_id == current_user.id:
+            existing = {(ex.exercise_name or '').strip().lower() for ex in tpl.exercises}
+            for cand in new_template_candidates:
+                key = (cand.get("name") or '').strip().lower()
+                if not key or key in existing:
+                    continue
+                db.session.add(TemplateExercise(
+                    template_id=tpl.id,
+                    exercise_name=cand.get("name"),
+                    muscle=cand.get("muscle"),
+                    equipment=cand.get("equipment"),
+                    default_sets=cand.get("default_sets"),
+                    default_reps=cand.get("default_reps"),
+                ))
+                existing.add(key)
+
         db.session.commit()
         flash('Workout logged.', 'success')
         if target_user.id != current_user.id:
             return redirect(url_for('trainer.client_detail', member_id=target_user.id, view='calendar'))
-        return redirect(url_for('template.view_session', session_id=workout_session.id))
+        view_kwargs = {
+            'session_id': workout_session.id,
+            'return_to': return_to_arg or 'templates',
+        }
+        if date_arg:
+            view_kwargs['date'] = date_arg
+        if anchor_arg:
+            view_kwargs['anchor'] = anchor_arg
+        return redirect(url_for('template.view_session', **view_kwargs))
 
-    # Build initial data using latest session as defaults
-    last_session = (
-        WorkoutSession.query
-        .filter_by(user_id=target_user.id, template_id=tpl.id)
-        .order_by(WorkoutSession.completed_at.desc().nullslast(), WorkoutSession.started_at.desc())
-        .first()
-    )
+    # Build initial data using requested session (edit) or latest session as defaults
+    last_session = None
+    if edit_session_id:
+        cand = WorkoutSession.query.get(edit_session_id)
+        if cand and cand.user_id == target_user.id and cand.template_id == tpl.id:
+            last_session = cand
+    if last_session is None:
+        last_session = (
+            WorkoutSession.query
+            .filter_by(user_id=target_user.id, template_id=tpl.id)
+            .order_by(WorkoutSession.completed_at.desc().nullslast(), WorkoutSession.started_at.desc())
+            .first()
+        )
 
     last_sets_map = {}
     if last_session:
@@ -455,8 +527,28 @@ def start_workout(template_id):
         if not item.get('sets'):
             item['sets'] = [{"reps": None, "weight": None}]
 
+    # Build exercise info lookup (instructions/images) for items in payload
+    name_keys = {item.get("name", "").strip().lower() for item in initial_payload if item.get("name")}
+    name_keys.discard("")
+    exercise_info_map = {}
+    if name_keys:
+        catalog_rows = ExerciseCatalog.query.filter(
+            func.lower(ExerciseCatalog.name).in_(name_keys)
+        ).all()
+        for row in catalog_rows:
+            key = (row.name or "").strip().lower()
+            exercise_info_map[key] = {
+                "name": row.name,
+                "instructions": row.instructions,
+                "image_main": row.image_main,
+                "image_secondary": row.image_secondary,
+            }
+
     start_time_obj = datetime.utcnow()
     logging_for_client = (target_user.id != current_user.id)
+    can_update_template = tpl.owner_id == current_user.id
+    template_exercise_names = {(ex.exercise_name or '').strip().lower() for ex in tpl.exercises}
+    template_exercise_names.discard('')
 
     return render_template(
         'start-workout.html',
@@ -465,7 +557,10 @@ def start_workout(template_id):
         start_time_iso=start_time_obj.isoformat(),
         start_time_display=start_time_obj.strftime('%Y-%m-%d %H:%M'),
         target_user=target_user,
-        logging_for_client=logging_for_client
+        logging_for_client=logging_for_client,
+        exercise_info_map=exercise_info_map,
+        can_update_template=can_update_template,
+        template_exercise_names=list(template_exercise_names),
     )
 
 
@@ -532,6 +627,7 @@ def view_session(session_id):
 
     return_to = request.args.get('return_to')
     return_date = request.args.get('date')
+    anchor = request.args.get('anchor')
     if return_to == 'calendar':
         calendar_args = {'view': 'calendar'}
         day_value = return_date or (session_date.strftime('%Y-%m-%d') if session_date else None)
@@ -542,6 +638,9 @@ def view_session(session_id):
     else:
         back_url = url_for('template.list_templates')
         back_label = "Templates"
+
+    if back_url and anchor:
+        back_url = f"{back_url}#{anchor}"
 
     return render_template(
         'view-session.html',

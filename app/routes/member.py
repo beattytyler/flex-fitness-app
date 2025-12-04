@@ -176,11 +176,22 @@ def _calculate_calorie_targets(user, weight_lbs=None):
 
     weekly_change = user.weekly_weight_change_lbs or 0
     try:
-        weekly_change = float(weekly_change)
+        weekly_change = abs(float(weekly_change))
     except (TypeError, ValueError):
         weekly_change = 0
 
-    goal = maintenance - (weekly_change * 500)
+    # Direction: lose if goal < current, gain if goal > current
+    goal_weight_lbs = _kg_to_pounds(user.goal_weight_kg)
+    direction = -1  # default: deficit
+    if goal_weight_lbs is not None and weight is not None:
+        if goal_weight_lbs > weight:
+            direction = 1  # surplus to gain toward higher goal
+        elif goal_weight_lbs < weight:
+            direction = -1
+        else:
+            direction = 0
+
+    goal = maintenance + (direction * weekly_change * 500)
 
     # Round to nearest tenth for display/storage consistency
     return round(max(0, maintenance), 1), round(max(0, goal), 1)
@@ -1132,30 +1143,27 @@ def update_info():
             except (TypeError, ValueError):
                 flash("Please enter a valid age.", "warning")
 
-    # Height handling: prefer centimeters, fall back to feet/inches
+    # Height handling: prefer feet/inches when provided, otherwise centimeters
+    feet_raw = request.form.get('height_feet')
+    inches_raw = request.form.get('height_inches')
     height_cm_raw = request.form.get('height_cm')
-    height_updated = False
-    if height_cm_raw:
+
+    if (feet_raw and str(feet_raw).strip() != "") or (inches_raw and str(inches_raw).strip() != ""):
         try:
-            height_cm_val = float(height_cm_raw)
+            feet = int(feet_raw or 0)
+            inches = float(inches_raw or 0)
+            total_inches = (feet * 12) + inches
+            if total_inches > 0:
+                user.height_cm = round(total_inches * 2.54, 1)
+        except (TypeError, ValueError):
+            flash("Invalid height in feet/inches.", "warning")
+    elif height_cm_raw:
+        try:
+            height_cm_val = round(float(height_cm_raw), 1)
             if height_cm_val > 0:
                 user.height_cm = height_cm_val
-                height_updated = True
         except (TypeError, ValueError):
             flash("Invalid height in centimeters.", "warning")
-
-    if not height_updated:
-        feet_raw = request.form.get('height_feet')
-        inches_raw = request.form.get('height_inches')
-        if feet_raw or inches_raw:
-            try:
-                feet = int(feet_raw or 0)
-                inches = float(inches_raw or 0)
-                total_inches = (feet * 12) + inches
-                if total_inches > 0:
-                    user.height_cm = total_inches * 2.54
-            except (TypeError, ValueError):
-                flash("Invalid height in feet/inches.", "warning")
 
     activity_raw = request.form.get('activity_level')
     if activity_raw is not None:
@@ -1268,6 +1276,22 @@ def register_trainer():
     flash(f"You are now registered with trainer {trainer.first_name} {trainer.last_name}.", "success")
     return redirect(request.referrer or url_for("member.dashboard"))
 
+@member_bp.route('/remove-trainer', methods=['POST'])
+def remove_trainer():
+    member_id = session.get('user_id')
+    if not member_id:
+        return "Please log in first", 403
+
+    member = User.query.get(member_id)
+    if not member or not member.trainer_id:
+        flash("No trainer to remove.", "info")
+        return redirect(request.referrer or url_for("member.dashboard"))
+
+    member.trainer_id = None
+    db.session.commit()
+    flash("Trainer disconnected.", "success")
+    return redirect(request.referrer or url_for("member.dashboard"))
+
 # -----------------------------
 # Exercise Plan
 # -----------------------------
@@ -1321,6 +1345,28 @@ def delete_food_log(log_id):
     db.session.commit()
 
     return jsonify({"status": "success", "message": f"Removed {food_name} from your log."})
+
+@member_bp.route('/delete-workout/<int:session_id>', methods=['POST'])
+def delete_workout(session_id):
+    user_id = session.get('user_id')
+    role = session.get('role')
+    if not user_id or role != 'member':
+        flash("Please log in as a member.", "danger")
+        return redirect(url_for("auth.login_member"))
+
+    session_obj = WorkoutSession.query.get(session_id)
+    if not session_obj or session_obj.user_id != user_id:
+        flash("Workout not found or unauthorized.", "danger")
+        return redirect(request.referrer or url_for('member.dashboard', view='calendar'))
+
+    db.session.delete(session_obj)
+    db.session.commit()
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"status": "success", "message": "Workout removed."})
+
+    flash("Workout removed.", "success")
+    next_url = request.form.get("next") or request.referrer or url_for('member.dashboard', view='calendar')
+    return redirect(next_url)
 
 #-----------------------------
 # Member Summary Page (Weekly and Monthly)

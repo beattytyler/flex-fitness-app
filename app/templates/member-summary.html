@@ -10,7 +10,7 @@
   <style>
     body.app-shell {
       background: linear-gradient(135deg, #eaf0ff, #fdfdff);
-      font-family: 'Inter', sans-serif;
+      font-weight: 400;
     }
     body.app-shell[data-theme="dark"] {
       background: radial-gradient(circle at 25% 10%, #1e293b, #050b16);
@@ -301,17 +301,16 @@
                           <div class="d-flex flex-column flex-sm-row justify-content-between gap-3">
                             <div>
                               <div class="history-label mb-1">Exercise</div>
-                              <div class="fw-semibold">{{ exercise.sets }}x {{ exercise.name }}</div>
+                              <div class="fw-semibold">{{ exercise.name }}</div>
                             </div>
                             <div class="text-sm-end">
                               <div class="history-label mb-1">Best Set</div>
                               <div class="fw-semibold">
                                 {% if exercise.best_weight is not none %}
-                                  {{ exercise.best_weight }} lbs
+                                  {{ exercise.best_reps or 0 }} x {{ exercise.best_weight }} lbs
                                 {% else %}
-                                  Bodyweight
+                                  {{ exercise.best_reps or 0 }} x Bodyweight
                                 {% endif %}
-                                x {{ exercise.best_reps or 0 }}
                               </div>
                             </div>
                           </div>
