@@ -10,47 +10,62 @@
 </head>
 <body class="app-shell index-page" data-theme="light">
 
-  <!-- Instagram icon link -->
-  <a 
-    class="instagram-link" 
-    href="https://www.instagram.com/flextrainingseries/" 
-    target="_blank" 
-    rel="noopener noreferrer" 
-    aria-label="Flex Training Series Instagram"
-  >
-    <img 
-      src="{{ url_for('static', filename='img/instagram-logo.svg') }}" 
-      alt="" 
-      class="instagram-logo" 
-      role="presentation" 
-      loading="lazy" 
-      width="32" 
-      height="32"
+  <!-- Brand logo -->
+  <div class="brand-cluster">
+    <a class="brand-logo" href="https://flextrainingseries.squarespace.com/" target="_blank" rel="noopener noreferrer" aria-label="Flex Training Series">
+      <img src="{{ url_for('static', filename='img/flex-logo.png') }}" alt="Flex Training Series logo" width="96" height="96" loading="lazy">
+    </a>
+    <a 
+      class="instagram-link" 
+      href="https://www.instagram.com/flextrainingseries/" 
+      target="_blank" 
+      rel="noopener noreferrer" 
+      aria-label="Flex Training Series Instagram"
     >
-    <span class="visually-hidden">Instagram</span>
-  </a>
+      <img 
+        src="{{ url_for('static', filename='img/instagram-logo.svg') }}" 
+        alt="" 
+        class="instagram-logo" 
+        role="presentation" 
+        loading="lazy" 
+        width="32" 
+        height="32"
+      >
+      <span class="visually-hidden">Instagram</span>
+    </a>
+  </div>
 
-  <!-- Main content -->
-  <div class="landing-hero container text-center d-flex flex-column align-items-center">
-    <div class="hero-card w-100">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, msg in messages %}
-            <div class="alert alert-{{ category if category else 'info' }} alert-dismissible fade show" role="alert">
-              {{ msg }}
-              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-              <div class="flash-progress" aria-hidden="true"><div class="bar"></div></div>
-            </div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
-      <div class="d-flex flex-column align-items-center">
-        <h1 class="fw-bold mb-2">Welcome message!</h1>
-        <p class="text-muted mb-4">Start your fitness journey today.</p>
-        <div class="d-flex flex-column gap-3" style="max-width: 300px; width: 100%;">
-          <a href="{{ url_for('auth.login_member') }}" class="btn btn-primary w-100">Log in</a>
-          <a href="{{ url_for('auth.register') }}" class="btn btn-success w-100">Create an Account</a>
+  <!-- CTA dropdown -->
+  <div class="cta-dropdown d-flex align-items-center gap-2">
+    <div class="dropdown">
+      <button class="btn btn-primary dropdown-toggle" type="button" id="ctaDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+        Start tracking your journey
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="ctaDropdown">
+        <li><a class="dropdown-item" href="{{ url_for('auth.login_member') }}">Log in</a></li>
+        <li><a class="dropdown-item" href="{{ url_for('auth.register') }}">Create an account</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Main gallery -->
+  <div class="landing-hero container-fluid">
+    <div class="landing-grid">
+      <div class="tile tile-hero-wide">
+        <img src="{{ url_for('static', filename='img/flex-weight-band.png') }}" alt="Flex weight band banner">
+        <div class="hero-overlay">
+          <p class="eyebrow mb-1">Flex Training Series</p>
+          <p class="mb-0 small text-muted">Coach-led, trackable training built around you.</p>
         </div>
+      </div>
+      <div class="tile">
+        <img src="{{ url_for('static', filename='img/flex-raph-1.png') }}" alt="Athlete training session">
+      </div>
+      <div class="tile">
+        <img src="{{ url_for('static', filename='img/flex-client-2.png') }}" alt="Client progress">
+      </div>
+      <div class="tile">
+        <img src="{{ url_for('static', filename='img/flex-client-1.png') }}" alt="Client workout">
       </div>
     </div>
   </div>

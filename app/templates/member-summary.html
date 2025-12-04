@@ -35,10 +35,10 @@
       display: flex;
       flex-direction: column;
     }
-    .section-card.card-blue { border-top: 4px solid #4c8bf5; }
-    .section-card.card-indigo { border-top: 4px solid #7f8bff; }
-    .section-card.card-slate { border-top: 4px solid #0a58ca; }
-    .section-card.card-mint { border-top: 4px solid #22c55e; }
+    .section-card.card-blue,
+    .section-card.card-indigo,
+    .section-card.card-slate,
+    .section-card.card-mint { border-top: 4px solid #394e68; }
     .workout-history-item {
       border: 1px solid #eef2ff;
       border-radius: 14px;
@@ -219,15 +219,15 @@
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div class="d-flex align-items-center gap-2">
                 {% if macro_prev_url %}
-                  <a class="btn btn-outline-secondary btn-sm" href="{{ macro_prev_url }}">&larr;</a>
+                  <a class="btn btn-outline-primary btn-sm" href="{{ macro_prev_url }}">&larr;</a>
                 {% else %}
-                  <button class="btn btn-outline-secondary btn-sm" disabled>&larr;</button>
+                  <button class="btn btn-outline-primary btn-sm" disabled>&larr;</button>
                 {% endif %}
                 <h4 class="mb-0">Weekly macro averages</h4>
                 {% if macro_next_url %}
-                  <a class="btn btn-outline-secondary btn-sm" href="{{ macro_next_url }}">&rarr;</a>
+                  <a class="btn btn-outline-primary btn-sm" href="{{ macro_next_url }}">&rarr;</a>
                 {% else %}
-                  <button class="btn btn-outline-secondary btn-sm" disabled>&rarr;</button>
+                  <button class="btn btn-outline-primary btn-sm" disabled>&rarr;</button>
                 {% endif %}
               </div>
               <span class="small text-muted">{{ macro_week_summary.label }}</span>

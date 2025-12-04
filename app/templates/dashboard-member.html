@@ -66,10 +66,6 @@
         display: block;
         font-size: 0.65rem;
       }
-      .trainer-remove-btn {
-        min-height: 38px;
-        padding: 0.45rem 0.9rem;
-      }
     </style>
   </head>
   <body class="app-shell" data-theme="{{ theme_mode or 'light' }}">
@@ -100,7 +96,7 @@
       <h1 class="mb-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
         <span>Welcome back, {{ user.first_name }}!</span>
         {% if has_any_messages and is_default_tab and not has_unread_messages %}
-          <a href="{{ url_for('member.view_messages') }}" class="btn btn-outline-primary btn-sm">
+          <a href="{{ url_for('member.view_messages') }}" class="btn btn-primary btn-sm">
             View Messages
           </a>
         {% endif %}
@@ -115,7 +111,7 @@
             <div class="small mb-0">Open it to dismiss this reminder across your tabs.</div>
           </div>
         </div>
-        <a href="{{ url_for('member.view_messages') }}" class="btn btn-sm btn-primary">
+        <a href="{{ url_for('member.view_messages') }}" class="btn btn-primary btn-sm">
           View Messages
         </a>
       </div>
@@ -199,11 +195,6 @@
                     <label class="form-label">Current Trainer</label>
                     <div class="d-flex align-items-stretch gap-2">
                       <input type="text" class="form-control flex-grow-1" style="max-width: 240px;" value="{% if user.trainer %}{{ user.trainer.first_name }} {{ user.trainer.last_name }}{% else %}Not connected{% endif %}" readonly>
-                      {% if user.trainer %}
-                        <form method="POST" action="{{ url_for('member.remove_trainer') }}">
-                          <button type="submit" class="btn btn-outline-danger trainer-remove-btn flex-shrink-0" data-confirm-remove="false">Remove</button>
-                        </form>
-                      {% endif %}
                     </div>
                   </div>
                 </div>
@@ -279,7 +270,7 @@
                       <label class="form-label">Trainer Code</label>
                       <input type="text" name="trainer_code" class="form-control" maxlength="6" placeholder="Enter code" required>
                     </div>
-                    <button type="submit" class="btn btn-outline-primary">Connect</button>
+                    <button type="submit" class="btn btn-primary">Connect</button>
                   </form>
                 </div>
               </div>
@@ -465,7 +456,7 @@
                   {% set clamped_calorie_pct = [calorie_pct, 200]|min %}
                   {% set _is_dark = (theme_mode or session.get('theme_mode') or 'light') == 'dark' %}
                   {% set calorie_base_color = 'var(--calorie-ring-base)' %}
-                  {% set calorie_ring_color = '#0d6efd' %}
+                  {% set calorie_ring_color = '#394e68' %}
                   <h5 class="card-title mb-4">Daily Calorie Goal</h5>
                   <div class="d-flex justify-content-center align-items-center mb-3">
                     <svg class="progress-ring" width="200" height="200">
@@ -1783,28 +1774,6 @@
         showMessage("Error deleting meal.", "danger");
       }
     }
-  });
-
-  // Confirm remove trainer (two-click)
-  document.addEventListener("click", (event) => {
-    const btn = event.target.closest(".trainer-remove-btn");
-    if (!btn) return;
-    if (btn.dataset.confirmRemove === "true") {
-      return;
-    }
-    event.preventDefault();
-    btn.dataset.confirmRemove = "true";
-    btn.textContent = "Confirm Remove";
-    btn.classList.remove("btn-outline-danger");
-    btn.classList.add("btn-danger");
-    setTimeout(() => {
-      if (btn.dataset.confirmRemove === "true") {
-        btn.dataset.confirmRemove = "false";
-        btn.textContent = "Remove Trainer";
-        btn.classList.add("btn-outline-danger");
-        btn.classList.remove("btn-danger");
-      }
-    }, 3000);
   });
 
   // Confirm remove workout (two-click)

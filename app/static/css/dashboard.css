@@ -1,6 +1,6 @@
 :root {
-  --app-primary: #0d6efd;
-  --app-primary-dark: #0a58ca;
+  --app-primary: #394e68;
+  --app-primary-dark: #2f3f52;
   --macro-calories: #f97316;
   --macro-protein: #16a34a;
   --macro-carbs: #2563eb;
@@ -13,7 +13,7 @@ body.app-shell {
   min-height: 100vh;
   padding-bottom: 90px;
   color: #0f172a;
-  background: radial-gradient(circle at top, #eef3ff 0%, #f9fbff 45%, #ffffff 100%);
+  background: radial-gradient(circle at top, #e7ebf0 0%, #f4f6f9 45%, #ffffff 100%);
   --calorie-ring-text: #333;
   --calorie-ring-sub: #666;
   --calorie-ring-base: #cbd5f5;
@@ -21,8 +21,111 @@ body.app-shell {
 }
 
 body.app-shell[data-theme="light"] {
-  background: radial-gradient(circle at 20% 0%, #eef3ff 0%, #f9fbff 45%, #ffffff 100%);
+  background: radial-gradient(circle at 20% 0%, #e7ebf0 0%, #f4f6f9 45%, #ffffff 100%);
   color: #0f172a;
+}
+
+.card,
+.section-card {
+  border: 1px solid rgba(57, 78, 104, 0.18);
+}
+
+.section-card {
+  border-top: 4px solid #394e68;
+}
+
+.btn-primary {
+  background-color: #394e68;
+  border-color: #394e68;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: #2f3f52;
+  border-color: #2f3f52;
+}
+
+.btn-outline-primary {
+  color: #394e68;
+  border-color: #394e68;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+  background-color: #394e68;
+  border-color: #394e68;
+  color: #fff;
+}
+
+.btn-success {
+  background-color: #394e68;
+  border-color: #394e68;
+  color: #fff;
+}
+
+.btn-success:hover,
+.btn-success:focus {
+  background-color: #2f3f52 !important;
+  border-color: #2f3f52 !important;
+  color: #fff !important;
+}
+
+.nav-tabs .nav-link.active,
+.nav-tabs .nav-link.active:focus,
+.nav-tabs .nav-link.active:hover {
+  color: #394e68;
+  border-color: #394e68 #394e68 #fff;
+}
+
+.nav-tabs .nav-link {
+  color: #394e68;
+  border-color: transparent;
+}
+
+.nav-tabs .nav-link:focus,
+.nav-tabs .nav-link:hover {
+  color: #394e68;
+}
+
+.nav-pills .nav-link {
+  color: #394e68;
+}
+
+.nav-pills .nav-link.active,
+.nav-pills .nav-link.active:focus,
+.nav-pills .nav-link.active:hover {
+  background-color: #394e68;
+}
+
+.btn-outline-secondary {
+  color: #394e68;
+  border-color: #394e68;
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+  background-color: #394e68;
+  border-color: #394e68;
+  color: #fff;
+}
+
+.bg-primary {
+  background-color: #394e68 !important;
+}
+
+.text-primary {
+  color: #394e68 !important;
+}
+
+.badge.bg-primary {
+  background-color: #394e68 !important;
+}
+
+.table-primary {
+  --bs-table-bg: rgba(57, 78, 104, 0.08);
+  --bs-table-color: #111;
+  color: var(--bs-table-color) !important;
+  background-color: var(--bs-table-bg) !important;
 }
 
 body.app-shell[data-theme="dark"] {

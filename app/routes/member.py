@@ -163,7 +163,12 @@ def _calculate_calorie_targets(user, weight_lbs=None):
     if not user:
         return None, None
 
+    # Prefer explicit weight passed in, then latest logged weight, then fall back to goal weight
     weight = weight_lbs if weight_lbs is not None else _latest_weight_lbs(user)
+    if weight is None:
+        goal_weight = _kg_to_pounds(user.goal_weight_kg)
+        if goal_weight:
+            weight = goal_weight
     if weight is None:
         return None, None
 
@@ -203,14 +208,20 @@ def _update_user_calorie_targets(user, weight_lbs=None):
     user.calorie_goal = goal if goal is not None else None
 
 @member_bp.route("/dashboard", methods=["GET", "POST"])
+@login_required
 def dashboard():
-    user_id = session.get("user_id")
-    role = session.get("role")
-    if not user_id or role != 'member':
+    if current_user.role != 'member':
         flash("Please log in as a member.", "danger")
         return redirect(url_for("auth.login_member"))
 
-    user = User.query.get(user_id)
+    user = current_user
+    if user:
+        latest_weight = _latest_weight_lbs(user)
+        maintenance, goal = _calculate_calorie_targets(user, weight_lbs=latest_weight)
+        user.maintenance_calories = maintenance if maintenance is not None else None
+        user.calorie_goal = goal if goal is not None else None
+        db.session.commit()
+        db.session.refresh(user)
     has_any_messages = False
     has_unread_messages = False
     if user and user.trainer_id:
@@ -1115,17 +1126,13 @@ def view_progress():
 # Update Profile Information
 # -----------------------------
 @member_bp.route('/update-info', methods=['POST'])
+@login_required
 def update_info():
-    user_id = session.get('user_id')
-    role = session.get('role')
-    if not user_id or role != 'member':
+    if current_user.role != 'member':
         flash("Please log in as a member.", "danger")
         return redirect(url_for('auth.login_member'))
 
-    user = User.query.get(user_id)
-    if not user:
-        flash("User not found.", "danger")
-        return redirect(url_for('auth.login_member'))
+    user = current_user
 
     gender = request.form.get('gender')
     if gender:
@@ -1200,8 +1207,17 @@ def update_info():
             except (TypeError, ValueError):
                 flash("Invalid weekly weight change.", "warning")
 
-    _update_user_calorie_targets(user)
-    db.session.commit()
+    # Recalculate calorie targets with the newest profile data
+    _update_user_calorie_targets(user, weight_lbs=_latest_weight_lbs(user))
+
+    try:
+        db.session.add(user)
+        db.session.commit()
+        db.session.refresh(user)
+    except Exception:
+        db.session.rollback()
+        flash("Could not save your profile changes. Please try again.", "danger")
+        return redirect(url_for('member.dashboard', view='profile'))
 
     flash("Profile updated successfully.", "success")
     return redirect(url_for('member.dashboard', view='profile'))
@@ -1211,17 +1227,13 @@ def update_info():
 # Log Weight
 # -----------------------------
 @member_bp.route('/log-weight', methods=['POST'])
+@login_required
 def log_weight():
-    user_id = session.get('user_id')
-    role = session.get('role')
-    if not user_id or role != 'member':
+    if current_user.role != 'member':
         flash("Please log in as a member.", "danger")
         return redirect(url_for('auth.login_member'))
 
-    user = User.query.get(user_id)
-    if not user:
-        flash("User not found.", "danger")
-        return redirect(url_for('auth.login_member'))
+    user = current_user
 
     weight_raw = request.form.get('weight_lbs')
     try:
@@ -1249,6 +1261,7 @@ def log_weight():
     db.session.add(log_entry)
 
     _update_user_calorie_targets(user, weight_lbs=weight_lbs)
+    db.session.add(user)
     db.session.commit()
 
     flash("Weight logged successfully.", "success")
@@ -1476,7 +1489,7 @@ def build_member_summary_context(client: User, macro_week_param: Optional[int] =
                     x=week_labels,
                     y=week_values,
                     marker=dict(
-                        color=["#0d6efd", "#5a8dee", "#8bb7ff", "#0a58ca", "#1c7ed6"][: len(week_values)]
+                        color=["#394e68", "#4b5d76", "#5d6f89", "#2f3f52", "#223041"][: len(week_values)]
                     ),
                 )
             ]
