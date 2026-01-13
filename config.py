@@ -6,8 +6,10 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or "dev_secret_key"
 
     # Database file stored inside the project folder
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL") or \
-        "sqlite:///" + os.path.join(basedir, "db.sqlite3")
+    _database_url = os.environ.get("DATABASE_URL")
+    if _database_url and _database_url.startswith("postgres://"):
+        _database_url = _database_url.replace("postgres://", "postgresql://", 1)
+    SQLALCHEMY_DATABASE_URI = _database_url or "sqlite:///" + os.path.join(basedir, "db.sqlite3")
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # Mail settings (used for email verification). Configure via environment variables.

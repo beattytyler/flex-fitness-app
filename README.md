@@ -50,6 +50,15 @@ python run.py
 ```
 Visit http://127.0.0.1:5000.
 
+### Deploy on Railway
+1. Create a Railway project from the repo.
+2. (Recommended) Add a PostgreSQL plugin; Railway will provide `DATABASE_URL`.
+3. Set environment variables: `SECRET_KEY`, `APP_BASE_URL`, and any `MAIL_*` values you need.
+4. Run migrations once via Railway shell/CLI:
+```bash
+python -m flask --app run.py db upgrade
+```
+
 ### Useful scripts
 - `scripts/cache_exercises.py`, `scripts/cache_usda_json.py`, `add_custom_weights.py` – helpers for populating exercise/nutrition data.
 
